@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sports Arbitrage Scanner</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="hero">
+    <div>
+      <h1>Kalshi ↔ Polymarket Sports Arbitrage Scanner</h1>
+      <p>Static dashboard consuming normalized backend opportunity data.</p>
+    </div>
+    <span class="badge" data-api-status>Checking backend…</span>
+  </header>
+  <main>
+    <section class="cards" aria-label="Summary">
+      <article class="card">Active sports markets<strong>0</strong></article>
+      <article class="card">Matched markets<strong>0</strong></article>
+      <article class="card">Confirmed arbitrage<strong>0</strong></article>
+      <article class="card">Highest ROI<strong>—</strong></article>
+    </section>
+    <table>
+      <thead><tr><th>Sport</th><th>Event</th><th>Market</th><th>Kalshi</th><th>Polymarket</th><th>ROI</th><th>Confidence</th><th>Status</th></tr></thead>
+      <tbody data-opportunities><tr><td colspan="8">Loading…</td></tr></tbody>
+    </table>
+  </main>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

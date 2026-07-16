@@ -1,0 +1,13 @@
+:root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; }
+body { margin: 0; background: #0f172a; color: #e2e8f0; }
+header, main { max-width: 1180px; margin: 0 auto; padding: 2rem; }
+.hero { display: flex; justify-content: space-between; gap: 1rem; align-items: center; }
+.badge { border: 1px solid #38bdf8; border-radius: 999px; color: #7dd3fc; padding: .45rem .8rem; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+.card, table { background: #111827; border: 1px solid #334155; border-radius: 1rem; }
+.card { padding: 1rem; }
+.card strong { display: block; font-size: 1.8rem; margin-top: .4rem; }
+table { width: 100%; border-collapse: collapse; overflow: hidden; }
+th, td { padding: .9rem; text-align: left; border-bottom: 1px solid #1f2937; }
+th { color: #93c5fd; font-size: .85rem; text-transform: uppercase; }
+@media (max-width: 760px) { header, main { padding: 1rem; } .hero { display: block; } table { font-size: .82rem; } }
