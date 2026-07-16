@@ -1,0 +1,38 @@
+{
+  "event_ticker": "KXMLBGAME-26JUL191610STLAZ",
+  "series_ticker": "KXMLBGAME",
+  "title": "St. Louis vs Arizona",
+  "sub_title": "STL vs AZ (Jul 19)",
+  "category": "Sports",
+  "last_updated_ts": "2026-07-16T20:15:35.678113Z",
+  "product_metadata": {
+    "competition": "Pro Baseball",
+    "competition_scope": "Game"
+  },
+  "markets": [
+    {
+      "ticker": "KXMLBGAME-26JUL191610STLAZ-STL",
+      "title": "St. Louis vs Arizona Winner?",
+      "yes_sub_title": "St. Louis",
+      "yes_bid_dollars": "0.4000",
+      "yes_ask_dollars": "0.4600",
+      "no_bid_dollars": "0.5400",
+      "no_ask_dollars": "0.6000",
+      "occurrence_datetime": "2026-07-19T23:10:00Z",
+      "rules_primary": "If St. Louis wins, the market resolves to Yes.",
+      "rules_secondary": "If postponed, the market remains open for up to two days."
+    },
+    {
+      "ticker": "KXMLBGAME-26JUL191610STLAZ-AZ",
+      "title": "St. Louis vs Arizona Winner?",
+      "yes_sub_title": "Arizona",
+      "yes_bid_dollars": "0.4800",
+      "yes_ask_dollars": "0.8400",
+      "no_bid_dollars": "0.1600",
+      "no_ask_dollars": "0.5200",
+      "occurrence_datetime": "2026-07-19T23:10:00Z",
+      "rules_primary": "If Arizona wins, the market resolves to Yes.",
+      "rules_secondary": "If postponed, the market remains open for up to two days."
+    }
+  ]
+}

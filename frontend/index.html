@@ -10,21 +10,37 @@
   <header class="hero">
     <div>
       <h1>Kalshi ↔ Polymarket Sports Arbitrage Scanner</h1>
-      <p>Static dashboard consuming normalized backend opportunity data.</p>
+      <p>Live, read-only MLB market monitoring across both exchanges.</p>
     </div>
     <span class="badge" data-api-status>Checking backend…</span>
   </header>
   <main>
     <section class="cards" aria-label="Summary">
-      <article class="card">Active sports markets<strong>0</strong></article>
-      <article class="card">Matched markets<strong>0</strong></article>
-      <article class="card">Confirmed arbitrage<strong>0</strong></article>
-      <article class="card">Highest ROI<strong>—</strong></article>
+      <article class="card">Active sports markets<strong data-market-count>0</strong></article>
+      <article class="card">Matched markets<strong data-match-count>0</strong></article>
+      <article class="card">Confirmed arbitrage<strong data-opportunity-count>0</strong></article>
+      <article class="card">Highest ROI<strong data-highest-roi>—</strong></article>
     </section>
-    <table>
-      <thead><tr><th>Sport</th><th>Event</th><th>Market</th><th>Kalshi</th><th>Polymarket</th><th>ROI</th><th>Confidence</th><th>Status</th></tr></thead>
-      <tbody data-opportunities><tr><td colspan="8">Loading…</td></tr></tbody>
-    </table>
+    <section>
+      <h2>Live MLB markets</h2>
+      <p class="section-note">Read-only market discovery from Kalshi and Polymarket.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Exchange</th><th>Game</th><th>Start</th><th>Selection</th><th>Best bid</th><th>Best ask</th><th>Updated</th></tr></thead>
+          <tbody data-markets><tr><td colspan="7">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+    <section>
+      <h2>Arbitrage opportunities</h2>
+      <p class="section-note">Matching and executable opportunity detection are the next phase.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Sport</th><th>Event</th><th>Market</th><th>Kalshi</th><th>Polymarket</th><th>ROI</th><th>Confidence</th><th>Status</th></tr></thead>
+          <tbody data-opportunities><tr><td colspan="8">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
   </main>
   <script src="config.js"></script>
   <script src="app.js"></script>
