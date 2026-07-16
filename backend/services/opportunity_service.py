@@ -38,6 +38,12 @@ class OpportunityService:
             sizing = size_binary_arbitrage(yes_exchange, yes_asks, no_exchange, no_asks)
             if sizing.quantity <= 0 or sizing.net_profit <= 0:
                 continue
+            if yes_exchange == "Kalshi":
+                kalshi_stake, kalshi_fee = sizing.yes_cost, sizing.yes_fee
+                polymarket_stake, polymarket_fee = sizing.no_cost, sizing.no_fee
+            else:
+                kalshi_stake, kalshi_fee = sizing.no_cost, sizing.no_fee
+                polymarket_stake, polymarket_fee = sizing.yes_cost, sizing.yes_fee
             event = f"{match.kalshi.away_team} at {match.kalshi.home_team}"
             opportunities.append(Opportunity(
                 id=f"{match.kalshi.market_id}:{match.polymarket.market_id}:{kalshi_side}:{poly_side}",
@@ -47,8 +53,13 @@ class OpportunityService:
                 event_start=match.kalshi.event_start,
                 kalshi_side=kalshi_side,
                 kalshi_price=_best_price(kalshi_book.yes_asks if kalshi_side == "YES" else kalshi_book.no_asks),
+                kalshi_stake=kalshi_stake,
+                kalshi_fee=kalshi_fee,
                 polymarket_side=poly_side,
                 polymarket_price=_best_price(polymarket_book.no_asks if poly_side == "NO" else polymarket_book.yes_asks),
+                polymarket_stake=polymarket_stake,
+                polymarket_fee=polymarket_fee,
+                contracts=sizing.quantity,
                 gross_cost=sizing.gross_cost,
                 estimated_fees=sizing.estimated_fees,
                 net_edge=sizing.net_profit,

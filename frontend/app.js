@@ -39,6 +39,14 @@ function formatPrice(price) {
   return Number.isFinite(price) ? `$${price.toFixed(3)}` : '—';
 }
 
+function formatMoney(value) {
+  return Number.isFinite(value) ? `$${value.toFixed(2)}` : '—';
+}
+
+function formatPercent(value) {
+  return Number.isFinite(value) ? `${(value * 100).toFixed(2)}%` : '—';
+}
+
 function formatTime(value) {
   return value ? new Date(value).toLocaleString() : '—';
 }
@@ -124,10 +132,10 @@ async function openOpportunityDetail(id) {
     const summary = el('p', {
       textContent:
         `${detail.kalshi_side} @ ${formatPrice(detail.kalshi_price)} on Kalshi + ${detail.polymarket_side} @ ` +
-        `${formatPrice(detail.polymarket_price)} on Polymarket · Gross cost $${detail.gross_cost.toFixed(2)} · ` +
-        `Fees $${detail.estimated_fees.toFixed(2)} · Net edge $${detail.net_edge.toFixed(2)} · ` +
-        `ROI ${(detail.roi * 100).toFixed(2)}% · Max size $${detail.maximum_executable_cost.toFixed(2)} · ` +
-        `Max profit $${detail.maximum_expected_profit.toFixed(2)}`,
+        `${formatPrice(detail.polymarket_price)} on Polymarket · Gross cost ${formatMoney(detail.gross_cost)} · ` +
+        `Fees ${formatMoney(detail.estimated_fees)} · Net edge ${formatMoney(detail.net_edge)} · ` +
+        `ROI ${formatPercent(detail.roi)} · Max size ${formatMoney(detail.maximum_executable_cost)} · ` +
+        `Max profit ${formatMoney(detail.maximum_expected_profit)}`,
     });
 
     const orderBooks = el('div', { className: 'detail-grid' }, [
@@ -167,37 +175,88 @@ async function openOpportunityDetail(id) {
   }
 }
 
+function renderLeg(exchangeName, side, price, stake, fee, url) {
+  return el('div', { className: 'leg' }, [
+    el('h4', { textContent: exchangeName }),
+    el('p', { className: 'leg__side', textContent: `Buy ${side} @ ${formatPrice(price)}` }),
+    el('p', { className: 'leg__prob', textContent: `Implied probability ${formatPercent(price)}` }),
+    el('p', { className: 'leg__stake' }, [
+      document.createTextNode('Stake '),
+      el('strong', { textContent: formatMoney(stake) }),
+    ]),
+    el('p', { className: 'leg__fee', textContent: `Est. exchange fee ${formatMoney(fee)}` }),
+    el('a', {
+      className: 'leg__link',
+      href: url,
+      target: '_blank',
+      rel: 'noopener',
+      textContent: `Place bet on ${exchangeName} →`,
+    }),
+  ]);
+}
+
+function renderOpportunityCard(opportunity) {
+  const header = el('div', { className: 'opp-card__header' }, [
+    el('div', {}, [
+      el('span', { className: 'opp-card__sport', textContent: opportunity.sport }),
+      el('h3', { textContent: opportunity.event }),
+      el('p', { className: 'opp-card__market', textContent: opportunity.market }),
+    ]),
+    el('span', { className: `status-badge status-${opportunity.status}`, textContent: opportunity.status }),
+  ]);
+
+  const legs = el('div', { className: 'opp-card__legs' }, [
+    renderLeg(
+      'Kalshi', opportunity.kalshi_side, opportunity.kalshi_price,
+      opportunity.kalshi_stake, opportunity.kalshi_fee, opportunity.kalshi_url,
+    ),
+    renderLeg(
+      'Polymarket', opportunity.polymarket_side, opportunity.polymarket_price,
+      opportunity.polymarket_stake, opportunity.polymarket_fee, opportunity.polymarket_url,
+    ),
+  ]);
+
+  const detailButton = el('button', {
+    type: 'button',
+    className: 'opp-card__detail-trigger',
+    textContent: 'Full order book & settlement details',
+  });
+  detailButton.addEventListener('click', () => openOpportunityDetail(opportunity.id));
+
+  const footer = el('div', { className: 'opp-card__footer' }, [
+    el('span', { className: 'opp-card__profit' }, [
+      document.createTextNode('Guaranteed profit '),
+      el('strong', { textContent: formatMoney(opportunity.net_edge) }),
+      document.createTextNode(` (${formatPercent(opportunity.roi)} ROI)`),
+    ]),
+    el('span', {
+      className: 'opp-card__meta',
+      textContent:
+        `${opportunity.contracts} contracts · Confidence ${opportunity.match_confidence} · ` +
+        `Updated ${formatTime(opportunity.last_updated)}`,
+    }),
+    detailButton,
+  ]);
+
+  return el('article', { className: 'opp-card' }, [header, legs, footer]);
+}
+
+function renderOpportunitiesMessage(message) {
+  opportunitiesBody.replaceChildren(el('p', { className: 'section-note', textContent: message }));
+}
+
 function renderOpportunities(opportunities) {
   opportunityCountEl.textContent = opportunities.filter((item) => item.status === 'confirmed').length;
   highestRoiEl.textContent = opportunities.length
-    ? `${(Math.max(...opportunities.map((item) => item.roi)) * 100).toFixed(2)}%`
+    ? formatPercent(Math.max(...opportunities.map((item) => item.roi)))
     : '—';
 
-  opportunitiesBody.replaceChildren();
   if (!opportunities.length) {
-    const row = opportunitiesBody.insertRow();
-    const cell = row.insertCell();
-    cell.colSpan = 8;
-    cell.textContent = 'No active opportunities yet.';
+    renderOpportunitiesMessage('No active opportunities yet.');
     return;
   }
 
-  for (const opportunity of opportunities) {
-    const row = opportunitiesBody.insertRow();
-    for (const value of [
-      opportunity.sport,
-      opportunity.event,
-      opportunity.market,
-      `${opportunity.kalshi_side} @ ${opportunity.kalshi_price}`,
-      `${opportunity.polymarket_side} @ ${opportunity.polymarket_price}`,
-      `${(opportunity.roi * 100).toFixed(2)}%`,
-      opportunity.match_confidence,
-      opportunity.status,
-    ]) {
-      row.insertCell().textContent = value ?? '—';
-    }
-    row.addEventListener('click', () => openOpportunityDetail(opportunity.id));
-  }
+  opportunitiesBody.replaceChildren(...opportunities.map(renderOpportunityCard));
 }
 
 // Opportunities stream over the WebSocket for near-real-time updates; everything
@@ -255,7 +314,7 @@ async function refresh() {
   } catch (error) {
     statusEl.textContent = 'Backend offline';
     replaceRows(marketsBody, [], 'Start the FastAPI backend to load markets.', 7);
-    replaceRows(opportunitiesBody, [], 'Start the FastAPI backend to load opportunities.', 8);
+    renderOpportunitiesMessage('Start the FastAPI backend to load opportunities.');
   }
 }
 

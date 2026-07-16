@@ -54,6 +54,30 @@ def test_opportunity_is_confirmed_when_market_data_is_fresh():
     assert opportunities[0].status == "confirmed"
 
 
+def test_opportunity_reports_per_side_stake_and_fee_breakdown():
+    now = datetime.now(UTC)
+    match = MarketMatch(
+        kalshi=market("kalshi", "k1", 0.47, 0.55, now),
+        polymarket=market("polymarket", "p1", 0.46, 0.49, now),
+        confidence=100,
+        status="confirmed",
+        explanation="No obvious settlement-rule mismatch detected.",
+    )
+    kalshi_book, polymarket_book = order_books()
+
+    opportunity = OpportunityService(stale_after_seconds=15).from_match(match, kalshi_book, polymarket_book)[0]
+
+    assert opportunity.kalshi_side == "YES"
+    assert opportunity.contracts == 100
+    assert opportunity.kalshi_stake == 47.0
+    assert opportunity.kalshi_fee == 1.75
+    assert opportunity.polymarket_side == "NO"
+    assert opportunity.polymarket_stake == 49.0
+    assert opportunity.polymarket_fee == 0.0
+    assert opportunity.kalshi_stake + opportunity.polymarket_stake == opportunity.gross_cost
+    assert opportunity.kalshi_fee + opportunity.polymarket_fee == opportunity.estimated_fees
+
+
 def test_opportunity_is_marked_stale_when_either_market_is_old(caplog):
     now = datetime.now(UTC)
     stale_time = now - timedelta(seconds=60)

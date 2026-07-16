@@ -29,6 +29,9 @@ def test_size_binary_arbitrage_walks_matching_levels_until_unprofitable():
     assert result.quantity == 8
     assert round(result.gross_cost, 2) == 7.10
     assert round(result.net_profit, 2) == 0.75
+    assert round(result.yes_cost, 2) == 3.50
+    assert round(result.no_cost, 2) == 3.60
+    assert round(result.yes_cost + result.no_cost, 2) == round(result.gross_cost, 2)
 
 
 def test_size_binary_arbitrage_returns_zero_when_no_levels_are_profitable():
