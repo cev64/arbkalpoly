@@ -4,6 +4,7 @@ from backend.normalizer.sports_normalizer import normalize_league, normalize_per
 def test_team_aliases():
     assert normalize_team("NYY") == "New York Yankees"
     assert normalize_team("LA Dodgers") == "Los Angeles Dodgers"
+    assert normalize_team("Chicago WS") == "Chicago White Sox"
 
 
 def test_player_aliases():

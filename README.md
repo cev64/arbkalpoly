@@ -8,6 +8,36 @@ The application should continuously monitor both exchanges, automatically match 
 
 The initial goal is **opportunity detection and monitoring**, not automated trade execution.
 
+## How Publishing Works
+
+The project lives in one GitHub repository, but production uses two deployments:
+
+1. GitHub Pages hosts the static files in `frontend/` and gives you the public dashboard link.
+2. A Python hosting provider such as Render or Railway runs `backend/` continuously.
+3. `frontend/config.js` points the dashboard at the deployed backend URL.
+
+Visitors only need the GitHub Pages link. API credentials, if later required, stay in the backend host's environment variables and are never placed in GitHub Pages.
+
+## Local Development
+
+Requires Python 3.10 or newer. From the repository root:
+
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn backend.main:app --reload
+```
+
+In a second terminal, serve the dashboard:
+
+```bash
+source .venv/bin/activate
+python -m http.server 8001 --directory frontend
+```
+
+Open `http://localhost:8001`. The backend runs at `http://localhost:8000` and refreshes public MLB game-winner markets every five minutes.
+
 ## Core Objectives
 
 - Connect to the Kalshi and Polymarket APIs

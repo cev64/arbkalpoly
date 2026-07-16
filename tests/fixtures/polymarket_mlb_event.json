@@ -1,0 +1,36 @@
+{
+  "id": "447859",
+  "slug": "mlb-tb-bos-2026-07-17",
+  "title": "Tampa Bay Rays vs. Boston Red Sox",
+  "eventDate": "2026-07-17",
+  "startTime": "2026-07-17T17:35:00Z",
+  "updatedAt": "2026-07-16T20:00:00Z",
+  "gameId": 10077865,
+  "seriesSlug": "mlb",
+  "teams": [
+    {"name": "Tampa Bay Rays", "ordering": "away"},
+    {"name": "Boston Red Sox", "ordering": "home"}
+  ],
+  "markets": [
+    {
+      "id": "2154786",
+      "question": "Tampa Bay Rays vs. Boston Red Sox",
+      "outcomes": "[\"Tampa Bay Rays\", \"Boston Red Sox\"]",
+      "clobTokenIds": "[\"token-rays\", \"token-red-sox\"]",
+      "bestBid": 0.45,
+      "bestAsk": 0.46,
+      "sportsMarketType": "moneyline",
+      "description": "The winning team resolves as the winning outcome.",
+      "resolutionSource": "https://www.mlb.com/"
+    },
+    {
+      "id": "2154787",
+      "question": "Game total",
+      "outcomes": "[\"Over\", \"Under\"]",
+      "clobTokenIds": "[\"over\", \"under\"]",
+      "bestBid": 0.49,
+      "bestAsk": 0.51,
+      "sportsMarketType": "totals"
+    }
+  ]
+}
