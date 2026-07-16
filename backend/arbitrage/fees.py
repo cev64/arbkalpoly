@@ -8,8 +8,11 @@ Polymarket (as of this writing): the CLOB charges no protocol trading fee;
 the on-chain fee switch exists but is set to 0%.
 Source: https://docs.polymarket.com/#fees
 """
+import logging
 import math
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -38,4 +41,5 @@ def estimate_fee(exchange: str, price: float, quantity: float, config: FeeConfig
         return _kalshi_fee(price, quantity, config.kalshi_rate)
     if exchange == "polymarket":
         return _polymarket_fee(price, quantity, config.polymarket_rate)
+    logger.error("Fee calculation error: unknown exchange %r (price=%s, quantity=%s)", exchange, price, quantity)
     raise ValueError(f"Unknown exchange: {exchange}")

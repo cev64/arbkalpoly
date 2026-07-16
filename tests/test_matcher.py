@@ -39,3 +39,18 @@ def test_rule_difference_requires_manual_review():
     match = match_markets(market("kalshi", "k1", "regulation only"), market("polymarket", "p1"), threshold=80)
     assert match is not None
     assert match.status == "manual_review"
+
+
+def test_rule_mismatch_is_logged(caplog):
+    with caplog.at_level("INFO"):
+        match_markets(market("kalshi", "k1", "regulation only"), market("polymarket", "p1"), threshold=80)
+
+    assert any("Rule mismatch" in record.message for record in caplog.records)
+
+
+def test_rejected_match_is_logged_at_debug(caplog):
+    with caplog.at_level("DEBUG"):
+        result = match_markets(market("kalshi", "k1"), market("polymarket", "p1"), threshold=101)
+
+    assert result is None
+    assert any("Rejected match" in record.message for record in caplog.records)

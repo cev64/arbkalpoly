@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from itertools import product
 from typing import Protocol
 
@@ -7,6 +8,8 @@ from backend.matcher.market_matcher import MarketMatch, match_markets
 from backend.models.opportunity import Opportunity
 from backend.services.market_cache import MarketCache
 from backend.services.opportunity_service import OpportunityService
+
+logger = logging.getLogger(__name__)
 
 
 class KalshiOrderBookSource(Protocol):
@@ -62,6 +65,11 @@ class MatchingService:
     async def _fetch_books(self, match: MarketMatch):
         token_ids = PolymarketCollector.token_ids(match.polymarket)
         if token_ids is None:
+            logger.warning(
+                "Skipping match %s/%s: Polymarket token metadata missing",
+                match.kalshi.market_id,
+                match.polymarket.market_id,
+            )
             return None
         yes_token_id, no_token_id = token_ids
         try:
@@ -69,7 +77,10 @@ class MatchingService:
                 self.kalshi_collector.fetch_order_book(match.kalshi.market_id),
                 self.polymarket_collector.fetch_order_book(yes_token_id, no_token_id),
             )
-        except Exception:
+        except Exception as error:
+            logger.error(
+                "Order book fetch failed for %s/%s: %s", match.kalshi.market_id, match.polymarket.market_id, error
+            )
             return None
 
     @staticmethod

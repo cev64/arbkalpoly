@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -12,6 +13,9 @@ from backend.services.market_cache import MarketCache
 from backend.services.market_discovery import MarketDiscoveryService
 from backend.services.matching_service import MatchingService
 from backend.services.opportunity_broadcaster import OpportunityBroadcaster
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 
 def create_app(
@@ -54,10 +58,12 @@ def create_app(
         app.state.market_discovery = discovery
         app.state.matching_service = matching_service
         app.state.opportunity_broadcaster = broadcaster
+        logger.info("Starting scanner: live_collectors=%s", collectors_enabled)
         broadcaster.start()
         if collectors_enabled:
             discovery.start()
         yield
+        logger.info("Shutting down scanner")
         await discovery.stop()
         await broadcaster.stop()
 

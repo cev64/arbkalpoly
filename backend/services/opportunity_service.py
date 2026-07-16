@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, datetime
 from dataclasses import asdict
 
@@ -5,6 +6,8 @@ from backend.arbitrage.sizing import size_binary_arbitrage
 from backend.matcher.market_matcher import MarketMatch
 from backend.models.opportunity import Opportunity
 from backend.models.order_book import OrderBook, OrderBookLevel
+
+logger = logging.getLogger(__name__)
 
 
 def _best_price(levels: tuple[OrderBookLevel, ...]) -> float:
@@ -19,7 +22,13 @@ class OpportunityService:
         opportunities: list[Opportunity] = []
         last_updated = min(match.kalshi.updated_at, match.polymarket.updated_at)
         age_seconds = (datetime.now(UTC) - last_updated).total_seconds()
-        status = "stale" if age_seconds > self.stale_after_seconds else match.status
+        is_stale = age_seconds > self.stale_after_seconds
+        status = "stale" if is_stale else match.status
+        if is_stale:
+            logger.warning(
+                "Opportunity %s/%s marked stale: age=%.1fs > stale_after_seconds=%d",
+                match.kalshi.market_id, match.polymarket.market_id, age_seconds, self.stale_after_seconds,
+            )
 
         legs = [
             ("Kalshi", kalshi_book.yes_asks, "Polymarket", polymarket_book.no_asks, "YES", "NO"),

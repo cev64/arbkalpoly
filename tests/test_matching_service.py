@@ -116,11 +116,35 @@ def test_find_opportunities_skips_matches_with_no_edge():
     assert asyncio.run(service.find_opportunities(cache)) == []
 
 
-def test_find_opportunities_skips_matches_missing_token_metadata():
+def test_find_opportunities_skips_matches_missing_token_metadata(caplog):
     cache = MarketCache()
     cache.upsert(market("kalshi", "k1", 0.47, 0.55))
     cache.upsert(replace(market("polymarket", "p1", 0.46, 0.49), raw=None))
 
     service = MatchingService(FakeKalshiCollector({}), FakePolymarketCollector({}), match_confidence_threshold=90)
 
-    assert asyncio.run(service.find_opportunities(cache)) == []
+    with caplog.at_level("WARNING"):
+        result = asyncio.run(service.find_opportunities(cache))
+
+    assert result == []
+    assert any("token metadata missing" in record.message for record in caplog.records)
+
+
+def test_order_book_fetch_failure_is_logged_and_skipped(caplog):
+    cache = MarketCache()
+    cache.upsert(market("kalshi", "k1", 0.47, 0.55))
+    cache.upsert(market("polymarket", "p1", 0.46, 0.49))
+
+    kalshi_collector = FakeKalshiCollector({})  # no book registered for "k1" -> KeyError
+    polymarket_collector = FakePolymarketCollector({
+        ("p1-yes-token", "p1-no-token"): OrderBook(
+            yes_asks=(OrderBookLevel(0.46, 100),), no_asks=(OrderBookLevel(0.49, 100),)
+        ),
+    })
+    service = MatchingService(kalshi_collector, polymarket_collector, match_confidence_threshold=90)
+
+    with caplog.at_level("ERROR"):
+        result = asyncio.run(service.find_opportunities(cache))
+
+    assert result == []
+    assert any("Order book fetch failed" in record.message for record in caplog.records)

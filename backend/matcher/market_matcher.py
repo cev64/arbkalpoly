@@ -1,6 +1,9 @@
+import logging
 from dataclasses import dataclass
 from backend.matcher.rule_validator import validate_rules
 from backend.models.market import NormalizedMarket
+
+logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class MarketMatch:
@@ -25,7 +28,13 @@ def match_markets(kalshi: NormalizedMarket, polymarket: NormalizedMarket, thresh
     score -= checks.count(False) * 15
     rules_ok, explanation = validate_rules(kalshi.rules_text, polymarket.rules_text)
     if not rules_ok:
+        logger.info("Rule mismatch for %s/%s: %s", kalshi.market_id, polymarket.market_id, explanation)
         score -= 20
     if score < threshold:
+        logger.debug(
+            "Rejected match %s/%s: score=%d below threshold=%d", kalshi.market_id, polymarket.market_id, score, threshold
+        )
         return None
-    return MarketMatch(kalshi, polymarket, max(score, 0), "confirmed" if rules_ok else "manual_review", explanation)
+    status = "confirmed" if rules_ok else "manual_review"
+    logger.info("Match created %s/%s: confidence=%d status=%s", kalshi.market_id, polymarket.market_id, max(score, 0), status)
+    return MarketMatch(kalshi, polymarket, max(score, 0), status, explanation)

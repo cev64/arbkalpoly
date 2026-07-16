@@ -1,9 +1,12 @@
 import asyncio
+import logging
 from datetime import UTC, datetime
 from typing import Protocol
 
 from backend.models.market import NormalizedMarket
 from backend.services.market_cache import MarketCache
+
+logger = logging.getLogger(__name__)
 
 
 class MarketCollector(Protocol):
@@ -40,9 +43,11 @@ class MarketDiscoveryService:
         for collector, result in zip(self.collectors, results):
             if isinstance(result, BaseException):
                 errors[collector.exchange] = f"{type(result).__name__}: {result}"
+                logger.error("%s market discovery failed: %s", collector.exchange, result)
                 continue
             self.cache.replace_exchange(collector.exchange, result)
             refreshed += len(result)
+            logger.info("%s discovered %d markets", collector.exchange, len(result))
 
         self.errors = errors
         if len(errors) < len(self.collectors):

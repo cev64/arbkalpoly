@@ -54,7 +54,7 @@ def test_opportunity_is_confirmed_when_market_data_is_fresh():
     assert opportunities[0].status == "confirmed"
 
 
-def test_opportunity_is_marked_stale_when_either_market_is_old():
+def test_opportunity_is_marked_stale_when_either_market_is_old(caplog):
     now = datetime.now(UTC)
     stale_time = now - timedelta(seconds=60)
     match = MarketMatch(
@@ -66,11 +66,13 @@ def test_opportunity_is_marked_stale_when_either_market_is_old():
     )
     kalshi_book, polymarket_book = order_books()
 
-    opportunities = OpportunityService(stale_after_seconds=15).from_match(match, kalshi_book, polymarket_book)
+    with caplog.at_level("WARNING"):
+        opportunities = OpportunityService(stale_after_seconds=15).from_match(match, kalshi_book, polymarket_book)
 
     assert len(opportunities) == 1
     assert opportunities[0].status == "stale"
     assert opportunities[0].last_updated == stale_time
+    assert any("marked stale" in record.message for record in caplog.records)
 
 
 def test_stale_status_overrides_manual_review():

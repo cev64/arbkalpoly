@@ -59,6 +59,21 @@ def test_refresh_keeps_successful_exchange_when_other_fails():
     assert service.last_success is not None
 
 
+def test_refresh_logs_collector_failures_and_successes(caplog):
+    cache = MarketCache()
+    service = MarketDiscoveryService(cache, [
+        Collector("kalshi", [market("kalshi", "k1")]),
+        Collector("polymarket", error=RuntimeError("feed unavailable")),
+    ])
+
+    with caplog.at_level("INFO"):
+        asyncio.run(service.refresh())
+
+    messages = [record.message for record in caplog.records]
+    assert any("kalshi discovered" in message for message in messages)
+    assert any("polymarket market discovery failed" in message for message in messages)
+
+
 def test_replace_exchange_removes_old_snapshot_only_for_that_exchange():
     cache = MarketCache()
     cache.upsert(market("kalshi", "old"))
