@@ -32,7 +32,7 @@ def market(exchange: str, market_id: str, yes_best_ask: float, no_best_ask: floa
         no_best_bid=no_best_ask - 0.01,
         rules_text="full game including extra innings",
         market_url="https://example.com",
-        updated_at=datetime(2026, 7, 16, 22, 0, tzinfo=UTC),
+        updated_at=datetime.now(UTC),
         raw=raw,
     )
 

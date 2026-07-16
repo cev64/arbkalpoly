@@ -36,6 +36,7 @@ def create_app(
             kalshi_collector=kalshi,
             polymarket_collector=polymarket,
             match_confidence_threshold=settings.minimum_match_confidence,
+            stale_after_seconds=settings.stale_after_seconds,
         )
         discovery = MarketDiscoveryService(
             cache=cache,

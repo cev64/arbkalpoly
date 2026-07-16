@@ -25,11 +25,12 @@ class MatchingService:
         kalshi_collector: KalshiOrderBookSource,
         polymarket_collector: PolymarketOrderBookSource,
         match_confidence_threshold: int = 90,
+        stale_after_seconds: int = 15,
     ) -> None:
         self.kalshi_collector = kalshi_collector
         self.polymarket_collector = polymarket_collector
         self.match_confidence_threshold = match_confidence_threshold
-        self._opportunity_service = OpportunityService()
+        self._opportunity_service = OpportunityService(stale_after_seconds=stale_after_seconds)
 
     def find_matches(self, cache: MarketCache) -> list[MarketMatch]:
         kalshi_markets = cache.all(exchange="kalshi")

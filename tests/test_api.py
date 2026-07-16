@@ -1,3 +1,6 @@
+from dataclasses import replace
+from datetime import UTC, datetime, timedelta
+
 from fastapi.testclient import TestClient
 
 from backend.main import create_app
@@ -76,6 +79,25 @@ def test_opportunities_filters_below_minimum_roi():
 
         assert response.status_code == 200
         assert response.json() == []
+
+
+def test_hide_stale_query_param_excludes_stale_opportunities():
+    with TestClient(matched_app()) as client:
+        cache = client.app.state.market_cache
+        stale_kalshi = replace(
+            matched_market("kalshi", "k1", 0.47, 0.55),
+            updated_at=datetime.now(UTC) - timedelta(minutes=5),
+        )
+        cache.upsert(stale_kalshi)
+        cache.upsert(matched_market("polymarket", "p1", 0.46, 0.49))
+
+        default_response = client.get("/opportunities")
+        assert default_response.status_code == 200
+        assert default_response.json()[0]["status"] == "stale"
+
+        hidden_response = client.get("/opportunities", params={"hide_stale": True})
+        assert hidden_response.status_code == 200
+        assert hidden_response.json() == []
 
 
 def test_unknown_opportunity_id_returns_404():
