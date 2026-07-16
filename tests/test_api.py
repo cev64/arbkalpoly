@@ -100,6 +100,20 @@ def test_hide_stale_query_param_excludes_stale_opportunities():
         assert hidden_response.json() == []
 
 
+def test_opportunities_websocket_streams_matched_opportunities():
+    with TestClient(matched_app()) as client:
+        client.app.state.websocket_push_interval_seconds = 0.01
+        cache = client.app.state.market_cache
+        cache.upsert(matched_market("kalshi", "k1", 0.47, 0.55))
+        cache.upsert(matched_market("polymarket", "p1", 0.46, 0.49))
+
+        with client.websocket_connect("/ws/opportunities") as websocket:
+            message = websocket.receive_json()
+
+        assert len(message) == 1
+        assert message[0]["status"] == "confirmed"
+
+
 def test_unknown_opportunity_id_returns_404():
     with TestClient(create_app(start_collectors=False)) as client:
         response = client.get("/opportunities/does-not-exist")

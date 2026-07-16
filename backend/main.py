@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.api.routes import router
+from backend.api.websocket import router as websocket_router
 from backend.collectors.kalshi import KalshiCollector
 from backend.collectors.polymarket import PolymarketCollector
 from backend.config import settings
@@ -46,6 +47,7 @@ def create_app(
         app.state.market_cache = cache
         app.state.market_discovery = discovery
         app.state.matching_service = matching_service
+        app.state.websocket_push_interval_seconds = settings.websocket_push_interval_seconds
         if collectors_enabled:
             discovery.start()
         yield
@@ -63,6 +65,7 @@ def create_app(
         allow_headers=["*"],
     )
     app.include_router(router)
+    app.include_router(websocket_router)
     return app
 
 

@@ -46,23 +46,72 @@ async function getJson(path) {
   return response.json();
 }
 
+function wsUrl(path) {
+  const url = new URL(path, config.apiBaseUrl);
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+  return url.toString();
+}
+
+function renderOpportunities(opportunities) {
+  opportunityCountEl.textContent = opportunities.filter((item) => item.status === 'confirmed').length;
+  highestRoiEl.textContent = opportunities.length
+    ? `${(Math.max(...opportunities.map((item) => item.roi)) * 100).toFixed(2)}%`
+    : '—';
+
+  replaceRows(
+    opportunitiesBody,
+    opportunities.map((opportunity) => [
+      opportunity.sport,
+      opportunity.event,
+      opportunity.market,
+      `${opportunity.kalshi_side} @ ${opportunity.kalshi_price}`,
+      `${opportunity.polymarket_side} @ ${opportunity.polymarket_price}`,
+      `${(opportunity.roi * 100).toFixed(2)}%`,
+      opportunity.match_confidence,
+      opportunity.status,
+    ]),
+    'No active opportunities yet.',
+    8,
+  );
+}
+
+// Opportunities stream over the WebSocket for near-real-time updates; everything
+// else (health, markets, matches) is cheap enough to keep on REST polling.
+const MIN_RECONNECT_DELAY_MS = 1000;
+const MAX_RECONNECT_DELAY_MS = 30000;
+let reconnectDelayMs = MIN_RECONNECT_DELAY_MS;
+
+function connectOpportunitiesSocket() {
+  const socket = new WebSocket(wsUrl('/ws/opportunities'));
+
+  socket.addEventListener('open', () => {
+    reconnectDelayMs = MIN_RECONNECT_DELAY_MS;
+  });
+
+  socket.addEventListener('message', (event) => {
+    renderOpportunities(JSON.parse(event.data));
+  });
+
+  socket.addEventListener('close', () => {
+    setTimeout(connectOpportunitiesSocket, reconnectDelayMs);
+    reconnectDelayMs = Math.min(reconnectDelayMs * 2, MAX_RECONNECT_DELAY_MS);
+  });
+
+  socket.addEventListener('error', () => socket.close());
+}
+
 async function refresh() {
   try {
-    const [health, markets, matches, opportunities] = await Promise.all([
+    const [health, markets, matches] = await Promise.all([
       getJson('/health'),
       getJson('/markets?league=MLB&limit=500'),
       getJson('/matches'),
-      getJson('/opportunities'),
     ]);
 
     const collectorErrors = Object.keys(health.collectors?.errors || {}).length;
     statusEl.textContent = collectorErrors ? 'Backend online · feed warning' : 'Live feeds online';
     marketCountEl.textContent = health.market_count ?? markets.length;
     matchCountEl.textContent = matches.length;
-    opportunityCountEl.textContent = opportunities.filter((item) => item.status === 'confirmed').length;
-    highestRoiEl.textContent = opportunities.length
-      ? `${(Math.max(...opportunities.map((item) => item.roi)) * 100).toFixed(2)}%`
-      : '—';
 
     replaceRows(
       marketsBody,
@@ -78,22 +127,6 @@ async function refresh() {
       'No live markets loaded yet.',
       7,
     );
-
-    replaceRows(
-      opportunitiesBody,
-      opportunities.map((opportunity) => [
-        opportunity.sport,
-        opportunity.event,
-        opportunity.market,
-        `${opportunity.kalshi_side} @ ${opportunity.kalshi_price}`,
-        `${opportunity.polymarket_side} @ ${opportunity.polymarket_price}`,
-        `${(opportunity.roi * 100).toFixed(2)}%`,
-        opportunity.match_confidence,
-        opportunity.status,
-      ]),
-      'No active opportunities yet.',
-      8,
-    );
   } catch (error) {
     statusEl.textContent = 'Backend offline';
     replaceRows(marketsBody, [], 'Start the FastAPI backend to load markets.', 7);
@@ -103,3 +136,4 @@ async function refresh() {
 
 refresh();
 setInterval(refresh, 15000);
+connectOpportunitiesSocket();
