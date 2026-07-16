@@ -1,21 +1,26 @@
 from datetime import UTC, datetime
 from dataclasses import asdict
-from backend.arbitrage.calculator import calculate_binary_arbitrage
+
+from backend.arbitrage.sizing import size_binary_arbitrage
 from backend.matcher.market_matcher import MarketMatch
 from backend.models.opportunity import Opportunity
+from backend.models.order_book import OrderBook, OrderBookLevel
+
+
+def _best_price(levels: tuple[OrderBookLevel, ...]) -> float:
+    return min((level.price for level in levels), default=0.0)
+
 
 class OpportunityService:
-    def from_match(self, match: MarketMatch) -> list[Opportunity]:
+    def from_match(self, match: MarketMatch, kalshi_book: OrderBook, polymarket_book: OrderBook) -> list[Opportunity]:
         opportunities: list[Opportunity] = []
-        pairs = [
-            ("Kalshi", match.kalshi.yes_best_ask, "Polymarket", match.polymarket.no_best_ask, "YES", "NO"),
-            ("Polymarket", match.polymarket.yes_best_ask, "Kalshi", match.kalshi.no_best_ask, "NO", "YES"),
+        legs = [
+            ("Kalshi", kalshi_book.yes_asks, "Polymarket", polymarket_book.no_asks, "YES", "NO"),
+            ("Polymarket", polymarket_book.yes_asks, "Kalshi", kalshi_book.no_asks, "NO", "YES"),
         ]
-        for yes_exchange, yes_price, no_exchange, no_price, kalshi_side, poly_side in pairs:
-            if yes_price is None or no_price is None:
-                continue
-            result = calculate_binary_arbitrage(yes_exchange, yes_price, no_exchange, no_price)
-            if not result.profitable:
+        for yes_exchange, yes_asks, no_exchange, no_asks, kalshi_side, poly_side in legs:
+            sizing = size_binary_arbitrage(yes_exchange, yes_asks, no_exchange, no_asks)
+            if sizing.quantity <= 0 or sizing.net_profit <= 0:
                 continue
             event = f"{match.kalshi.away_team} at {match.kalshi.home_team}"
             opportunities.append(Opportunity(
@@ -25,15 +30,15 @@ class OpportunityService:
                 market=f"{match.kalshi.selection} to win",
                 event_start=match.kalshi.event_start,
                 kalshi_side=kalshi_side,
-                kalshi_price=match.kalshi.yes_best_ask if kalshi_side == "YES" else match.kalshi.no_best_ask or 0,
+                kalshi_price=_best_price(kalshi_book.yes_asks if kalshi_side == "YES" else kalshi_book.no_asks),
                 polymarket_side=poly_side,
-                polymarket_price=match.polymarket.no_best_ask if poly_side == "NO" else match.polymarket.yes_best_ask or 0,
-                gross_cost=result.gross_cost,
-                estimated_fees=result.estimated_fees,
-                net_edge=result.net_profit,
-                roi=result.roi,
-                maximum_executable_cost=result.gross_cost,
-                maximum_expected_profit=result.net_profit,
+                polymarket_price=_best_price(polymarket_book.no_asks if poly_side == "NO" else polymarket_book.yes_asks),
+                gross_cost=sizing.gross_cost,
+                estimated_fees=sizing.estimated_fees,
+                net_edge=sizing.net_profit,
+                roi=sizing.roi,
+                maximum_executable_cost=sizing.gross_cost,
+                maximum_expected_profit=sizing.net_profit,
                 match_confidence=match.confidence,
                 status=match.status,
                 last_updated=datetime.now(UTC),

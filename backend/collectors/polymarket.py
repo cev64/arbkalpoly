@@ -1,3 +1,4 @@
+import asyncio
 import json
 import re
 from datetime import UTC, datetime, timedelta
@@ -6,6 +7,7 @@ from typing import Any
 import httpx
 
 from backend.models.market import NormalizedMarket
+from backend.models.order_book import OrderBook, OrderBookLevel
 from backend.normalizer.sports_normalizer import normalize_team, parse_datetime
 
 
@@ -112,6 +114,7 @@ def normalize_polymarket_event(event: dict[str, Any]) -> list[NormalizedMarket]:
                     "market": market,
                     "outcome_index": index,
                     "token_id": token_ids[index],
+                    "opposing_token_id": token_ids[1 - index],
                 },
             ))
 
@@ -126,14 +129,27 @@ class PolymarketCollector:
     def __init__(
         self,
         base_url: str = "https://gamma-api.polymarket.com",
+        clob_base_url: str = "https://clob.polymarket.com",
         timeout: float = 20.0,
         max_pages: int = 10,
         client: httpx.AsyncClient | None = None,
     ) -> None:
         self.base_url = base_url
+        self.clob_base_url = clob_base_url
         self.timeout = timeout
         self.max_pages = max_pages
         self.client = client
+
+    @staticmethod
+    def token_ids(market: NormalizedMarket) -> tuple[str, str] | None:
+        """Return (own_token_id, opposing_token_id) for a normalized Polymarket market, if known."""
+        if not market.raw:
+            return None
+        own = market.raw.get("token_id")
+        opposing = market.raw.get("opposing_token_id")
+        if own is None or opposing is None:
+            return None
+        return str(own), str(opposing)
 
     async def fetch_markets(self) -> list[NormalizedMarket]:
         if self.client is not None:
@@ -171,3 +187,34 @@ class PolymarketCollector:
                 break
 
         return normalized
+
+    async def fetch_order_book(self, yes_token_id: str, no_token_id: str) -> OrderBook:
+        if self.client is not None:
+            return await self._fetch_order_book(self.client, yes_token_id, no_token_id)
+        async with httpx.AsyncClient(
+            base_url=self.clob_base_url,
+            timeout=self.timeout,
+            headers={"User-Agent": "arbkalpoly/phase-1"},
+        ) as client:
+            return await self._fetch_order_book(client, yes_token_id, no_token_id)
+
+    async def _fetch_order_book(
+        self, client: httpx.AsyncClient, yes_token_id: str, no_token_id: str
+    ) -> OrderBook:
+        yes_response, no_response = await asyncio.gather(
+            client.get("/book", params={"token_id": yes_token_id}),
+            client.get("/book", params={"token_id": no_token_id}),
+        )
+        yes_response.raise_for_status()
+        no_response.raise_for_status()
+        return OrderBook(
+            yes_asks=_levels(yes_response.json().get("asks") or []),
+            no_asks=_levels(no_response.json().get("asks") or []),
+        )
+
+
+def _levels(raw_levels: list[dict[str, Any]]) -> tuple[OrderBookLevel, ...]:
+    return tuple(
+        OrderBookLevel(price=float(level["price"]), quantity=float(level["size"]))
+        for level in raw_levels
+    )

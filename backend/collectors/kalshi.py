@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 import httpx
 
 from backend.models.market import NormalizedMarket
+from backend.models.order_book import OrderBook, OrderBookLevel
 from backend.normalizer.sports_normalizer import normalize_team, parse_datetime
 
 MLB_GAME_SERIES = "KXMLBGAME"
@@ -146,3 +147,32 @@ class KalshiCollector:
                 break
 
         return normalized
+
+    async def fetch_order_book(self, ticker: str) -> OrderBook:
+        if self.client is not None:
+            return await self._fetch_order_book(self.client, ticker)
+        async with httpx.AsyncClient(
+            base_url=self.base_url,
+            timeout=self.timeout,
+            headers={"User-Agent": "arbkalpoly/phase-1"},
+        ) as client:
+            return await self._fetch_order_book(client, ticker)
+
+    async def _fetch_order_book(self, client: httpx.AsyncClient, ticker: str) -> OrderBook:
+        response = await client.get(f"/markets/{ticker}/orderbook")
+        response.raise_for_status()
+        payload = response.json().get("orderbook_fp") or {}
+        yes_bids = payload.get("yes_dollars") or []
+        no_bids = payload.get("no_dollars") or []
+
+        # Kalshi's public book only exposes resting bids; the ask side of one
+        # outcome is the complement of the other outcome's bid at the same size.
+        yes_asks = tuple(
+            OrderBookLevel(price=round(1 - float(price), 6), quantity=float(quantity))
+            for price, quantity in no_bids
+        )
+        no_asks = tuple(
+            OrderBookLevel(price=round(1 - float(price), 6), quantity=float(quantity))
+            for price, quantity in yes_bids
+        )
+        return OrderBook(yes_asks=yes_asks, no_asks=no_asks)
