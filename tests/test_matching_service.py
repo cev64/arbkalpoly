@@ -75,6 +75,37 @@ def test_find_matches_ignores_different_leagues():
     assert service.find_matches(cache) == []
 
 
+def test_find_matches_ignores_different_dates():
+    cache = MarketCache()
+    cache.upsert(market("kalshi", "k1", 0.47, 0.55))
+    cache.upsert(replace(
+        market("polymarket", "p1", 0.46, 0.49),
+        event_start=datetime(2026, 7, 17, 23, 10, tzinfo=UTC),
+    ))
+
+    service = MatchingService(FakeKalshiCollector({}), FakePolymarketCollector({}), match_confidence_threshold=90)
+
+    assert service.find_matches(cache) == []
+
+
+def test_find_matches_only_compares_within_matching_league_and_date_bucket():
+    cache = MarketCache()
+    cache.upsert(market("kalshi", "k1", 0.47, 0.55))
+    cache.upsert(market("polymarket", "p1", 0.46, 0.49))
+    # A second, unrelated (league, date) bucket: its markets should only match each
+    # other, never bleed into the MLB pairing above - proving the bucketing is
+    # actually partitioning candidates rather than accidentally comparing everyone
+    # to everyone (which would still pass a naive "count == 1" assertion by luck).
+    cache.upsert(replace(market("kalshi", "k2", 0.47, 0.55), league="NFL"))
+    cache.upsert(replace(market("polymarket", "p2", 0.46, 0.49), league="NFL"))
+
+    service = MatchingService(FakeKalshiCollector({}), FakePolymarketCollector({}), match_confidence_threshold=90)
+    matches = service.find_matches(cache)
+
+    pairs = {(match.kalshi.market_id, match.polymarket.market_id) for match in matches}
+    assert pairs == {("k1", "p1"), ("k2", "p2")}
+
+
 def test_find_opportunities_flags_profitable_cross_exchange_arbitrage():
     cache = MarketCache()
     cache.upsert(market("kalshi", "k1", 0.47, 0.55))

@@ -1,10 +1,12 @@
 import asyncio
 import logging
-from itertools import product
+from collections import defaultdict
+from datetime import date
 from typing import Protocol
 
 from backend.collectors.polymarket import PolymarketCollector
 from backend.matcher.market_matcher import MarketMatch, match_markets
+from backend.models.market import NormalizedMarket
 from backend.models.opportunity import Opportunity
 from backend.services.market_cache import MarketCache
 from backend.services.opportunity_service import OpportunityService
@@ -39,15 +41,23 @@ class MatchingService:
         kalshi_markets = cache.all(exchange="kalshi")
         polymarket_markets = cache.all(exchange="polymarket")
 
+        # Two markets can only ever match within the same league on the same calendar
+        # day, so bucket by (league, date) instead of comparing every Kalshi market
+        # against every Polymarket market. A full cross-product is fine at MLB-only
+        # scale but grows quadratically with total market count as more leagues are
+        # added, while this bucketing only grows with however many games share a day.
+        polymarket_by_key: dict[tuple[str, date], list[NormalizedMarket]] = defaultdict(list)
+        for polymarket_market in polymarket_markets:
+            key = (polymarket_market.league, polymarket_market.event_start.date())
+            polymarket_by_key[key].append(polymarket_market)
+
         matches: list[MarketMatch] = []
-        for kalshi_market, polymarket_market in product(kalshi_markets, polymarket_markets):
-            if kalshi_market.league != polymarket_market.league:
-                continue
-            if kalshi_market.event_start.date() != polymarket_market.event_start.date():
-                continue
-            match = match_markets(kalshi_market, polymarket_market, threshold=self.match_confidence_threshold)
-            if match is not None:
-                matches.append(match)
+        for kalshi_market in kalshi_markets:
+            key = (kalshi_market.league, kalshi_market.event_start.date())
+            for polymarket_market in polymarket_by_key.get(key, ()):
+                match = match_markets(kalshi_market, polymarket_market, threshold=self.match_confidence_threshold)
+                if match is not None:
+                    matches.append(match)
         return matches
 
     async def find_opportunities(self, cache: MarketCache) -> list[Opportunity]:
