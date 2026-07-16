@@ -69,3 +69,28 @@ class OpportunityService:
         data["event_start"] = opportunity.event_start.isoformat()
         data["last_updated"] = opportunity.last_updated.isoformat()
         return data
+
+    @staticmethod
+    def serialize_detail(
+        opportunity: Opportunity, match: MarketMatch, kalshi_book: OrderBook, polymarket_book: OrderBook
+    ) -> dict:
+        data = OpportunityService.serialize(opportunity)
+        data["kalshi_rules_text"] = match.kalshi.rules_text
+        data["polymarket_rules_text"] = match.polymarket.rules_text
+        data["match_explanation"] = match.explanation
+        data["kalshi_order_book"] = _serialize_order_book(kalshi_book)
+        data["polymarket_order_book"] = _serialize_order_book(polymarket_book)
+        return data
+
+
+def _serialize_order_book(book: OrderBook) -> dict:
+    return {
+        "yes_asks": [
+            {"price": level.price, "quantity": level.quantity}
+            for level in sorted(book.yes_asks, key=lambda level: level.price)
+        ],
+        "no_asks": [
+            {"price": level.price, "quantity": level.quantity}
+            for level in sorted(book.no_asks, key=lambda level: level.price)
+        ],
+    }

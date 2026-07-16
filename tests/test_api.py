@@ -66,7 +66,13 @@ def test_matches_and_opportunities_reflect_cached_markets():
         opportunity_id = body[0]["id"]
         detail_response = client.get(f"/opportunities/{opportunity_id}")
         assert detail_response.status_code == 200
-        assert detail_response.json()["id"] == opportunity_id
+        detail = detail_response.json()
+        assert detail["id"] == opportunity_id
+        assert detail["kalshi_rules_text"] == "full game including extra innings"
+        assert detail["polymarket_rules_text"] == "full game including extra innings"
+        assert detail["match_explanation"]
+        assert detail["kalshi_order_book"]["yes_asks"] == [{"price": 0.47, "quantity": 100}]
+        assert detail["polymarket_order_book"]["no_asks"] == [{"price": 0.49, "quantity": 100}]
 
 
 def test_opportunities_filters_below_minimum_roi():

@@ -33,7 +33,7 @@
     </section>
     <section>
       <h2>Arbitrage opportunities</h2>
-      <p class="section-note">Matching and executable opportunity detection are the next phase.</p>
+      <p class="section-note">Select a row for the full order books, settlement wording, and fee breakdown.</p>
       <div class="table-wrap">
         <table>
           <thead><tr><th>Sport</th><th>Event</th><th>Market</th><th>Kalshi</th><th>Polymarket</th><th>ROI</th><th>Confidence</th><th>Status</th></tr></thead>
@@ -42,6 +42,12 @@
       </div>
     </section>
   </main>
+  <div class="overlay" data-detail-overlay hidden>
+    <div class="detail-panel" role="dialog" aria-modal="true" aria-label="Opportunity detail">
+      <button class="detail-close" type="button" data-detail-close aria-label="Close">×</button>
+      <div data-detail-body>Loading…</div>
+    </div>
+  </div>
   <script src="config.js"></script>
   <script src="app.js"></script>
 </body>

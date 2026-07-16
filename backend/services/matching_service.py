@@ -62,6 +62,19 @@ class MatchingService:
             opportunities.extend(self._opportunity_service.from_match(match, kalshi_book, polymarket_book))
         return opportunities
 
+    async def find_opportunity_detail(self, cache: MarketCache, opportunity_id: str) -> dict | None:
+        matches = self.find_matches(cache)
+        books = await asyncio.gather(*(self._fetch_books(match) for match in matches))
+
+        for match, book_pair in zip(matches, books):
+            if book_pair is None:
+                continue
+            kalshi_book, polymarket_book = book_pair
+            for opportunity in self._opportunity_service.from_match(match, kalshi_book, polymarket_book):
+                if opportunity.id == opportunity_id:
+                    return self._opportunity_service.serialize_detail(opportunity, match, kalshi_book, polymarket_book)
+        return None
+
     async def _fetch_books(self, match: MarketMatch):
         token_ids = PolymarketCollector.token_ids(match.polymarket)
         if token_ids is None:
