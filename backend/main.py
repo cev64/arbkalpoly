@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.api.rate_limit import RateLimitMiddleware
 from backend.api.routes import router
 from backend.api.websocket import router as websocket_router
 from backend.collectors.kalshi import KalshiCollector
@@ -22,6 +23,8 @@ def create_app(
     start_collectors: bool | None = None,
     kalshi_collector: KalshiCollector | None = None,
     polymarket_collector: PolymarketCollector | None = None,
+    rate_limit_requests: int | None = None,
+    rate_limit_window_seconds: float | None = None,
 ) -> FastAPI:
     collectors_enabled = settings.enable_live_collectors if start_collectors is None else start_collectors
 
@@ -70,6 +73,13 @@ def create_app(
     app = FastAPI(
         title="Kalshi Polymarket Sports Arbitrage Scanner",
         lifespan=lifespan,
+    )
+    app.add_middleware(
+        RateLimitMiddleware,
+        max_requests=rate_limit_requests if rate_limit_requests is not None else settings.rate_limit_requests,
+        window_seconds=(
+            rate_limit_window_seconds if rate_limit_window_seconds is not None else settings.rate_limit_window_seconds
+        ),
     )
     app.add_middleware(
         CORSMiddleware,

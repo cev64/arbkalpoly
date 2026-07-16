@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     collector_timeout_seconds: float = 20.0
     collector_max_pages: int = 10
     enable_live_collectors: bool = True
+    rate_limit_requests: int = 120
+    rate_limit_window_seconds: float = 60.0
     kalshi_base_url: str = "https://external-api.kalshi.com/trade-api/v2"
     polymarket_base_url: str = "https://gamma-api.polymarket.com"
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
