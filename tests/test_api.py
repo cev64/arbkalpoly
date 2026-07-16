@@ -102,16 +102,31 @@ def test_hide_stale_query_param_excludes_stale_opportunities():
 
 def test_opportunities_websocket_streams_matched_opportunities():
     with TestClient(matched_app()) as client:
-        client.app.state.websocket_push_interval_seconds = 0.01
         cache = client.app.state.market_cache
         cache.upsert(matched_market("kalshi", "k1", 0.47, 0.55))
         cache.upsert(matched_market("polymarket", "p1", 0.46, 0.49))
+        client.portal.call(client.app.state.opportunity_broadcaster.refresh_once)
 
         with client.websocket_connect("/ws/opportunities") as websocket:
             message = websocket.receive_json()
 
         assert len(message) == 1
         assert message[0]["status"] == "confirmed"
+
+
+def test_opportunities_websocket_shares_one_snapshot_across_connections():
+    with TestClient(matched_app()) as client:
+        cache = client.app.state.market_cache
+        cache.upsert(matched_market("kalshi", "k1", 0.47, 0.55))
+        cache.upsert(matched_market("polymarket", "p1", 0.46, 0.49))
+        client.portal.call(client.app.state.opportunity_broadcaster.refresh_once)
+
+        with client.websocket_connect("/ws/opportunities") as first, client.websocket_connect("/ws/opportunities") as second:
+            first_message = first.receive_json()
+            second_message = second.receive_json()
+
+        assert first_message == second_message
+        assert len(first_message) == 1
 
 
 def test_unknown_opportunity_id_returns_404():

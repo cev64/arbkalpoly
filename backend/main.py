@@ -11,6 +11,7 @@ from backend.config import settings
 from backend.services.market_cache import MarketCache
 from backend.services.market_discovery import MarketDiscoveryService
 from backend.services.matching_service import MatchingService
+from backend.services.opportunity_broadcaster import OpportunityBroadcaster
 
 
 def create_app(
@@ -44,14 +45,21 @@ def create_app(
             collectors=[kalshi, polymarket],
             refresh_seconds=settings.market_refresh_seconds,
         )
+        broadcaster = OpportunityBroadcaster(
+            cache=cache,
+            matching_service=matching_service,
+            interval_seconds=settings.websocket_push_interval_seconds,
+        )
         app.state.market_cache = cache
         app.state.market_discovery = discovery
         app.state.matching_service = matching_service
-        app.state.websocket_push_interval_seconds = settings.websocket_push_interval_seconds
+        app.state.opportunity_broadcaster = broadcaster
+        broadcaster.start()
         if collectors_enabled:
             discovery.start()
         yield
         await discovery.stop()
+        await broadcaster.stop()
 
     app = FastAPI(
         title="Kalshi Polymarket Sports Arbitrage Scanner",
