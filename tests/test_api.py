@@ -1,8 +1,27 @@
 from fastapi.testclient import TestClient
 
 from backend.main import create_app
+from backend.models.order_book import OrderBook, OrderBookLevel
 from tests.test_market_discovery import market
+from tests.test_matching_service import FakeKalshiCollector, FakePolymarketCollector
 from tests.test_matching_service import market as matched_market
+
+
+def matched_app(**kwargs):
+    kalshi_collector = FakeKalshiCollector({
+        "k1": OrderBook(yes_asks=(OrderBookLevel(0.47, 100),), no_asks=(OrderBookLevel(0.55, 100),)),
+    })
+    polymarket_collector = FakePolymarketCollector({
+        ("p1-yes-token", "p1-no-token"): OrderBook(
+            yes_asks=(OrderBookLevel(0.46, 100),), no_asks=(OrderBookLevel(0.49, 100),)
+        ),
+    })
+    return create_app(
+        start_collectors=False,
+        kalshi_collector=kalshi_collector,
+        polymarket_collector=polymarket_collector,
+        **kwargs,
+    )
 
 
 def test_markets_endpoint_reads_normalized_cache():
@@ -25,7 +44,7 @@ def test_health_reports_collector_state():
 
 
 def test_matches_and_opportunities_reflect_cached_markets():
-    with TestClient(create_app(start_collectors=False)) as client:
+    with TestClient(matched_app()) as client:
         cache = client.app.state.market_cache
         cache.upsert(matched_market("kalshi", "k1", 0.47, 0.55))
         cache.upsert(matched_market("polymarket", "p1", 0.46, 0.49))
@@ -48,7 +67,7 @@ def test_matches_and_opportunities_reflect_cached_markets():
 
 
 def test_opportunities_filters_below_minimum_roi():
-    with TestClient(create_app(start_collectors=False)) as client:
+    with TestClient(matched_app()) as client:
         cache = client.app.state.market_cache
         cache.upsert(matched_market("kalshi", "k1", 0.47, 0.55))
         cache.upsert(matched_market("polymarket", "p1", 0.46, 0.49))

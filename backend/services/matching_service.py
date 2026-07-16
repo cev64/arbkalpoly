@@ -1,15 +1,33 @@
+import asyncio
 from itertools import product
+from typing import Protocol
 
+from backend.collectors.polymarket import PolymarketCollector
 from backend.matcher.market_matcher import MarketMatch, match_markets
 from backend.models.opportunity import Opportunity
 from backend.services.market_cache import MarketCache
 from backend.services.opportunity_service import OpportunityService
 
 
+class KalshiOrderBookSource(Protocol):
+    async def fetch_order_book(self, ticker: str): ...
+
+
+class PolymarketOrderBookSource(Protocol):
+    async def fetch_order_book(self, yes_token_id: str, no_token_id: str): ...
+
+
 class MatchingService:
     """Builds cross-exchange market matches and arbitrage opportunities from the live market cache."""
 
-    def __init__(self, match_confidence_threshold: int = 90) -> None:
+    def __init__(
+        self,
+        kalshi_collector: KalshiOrderBookSource,
+        polymarket_collector: PolymarketOrderBookSource,
+        match_confidence_threshold: int = 90,
+    ) -> None:
+        self.kalshi_collector = kalshi_collector
+        self.polymarket_collector = polymarket_collector
         self.match_confidence_threshold = match_confidence_threshold
         self._opportunity_service = OpportunityService()
 
@@ -28,11 +46,30 @@ class MatchingService:
                 matches.append(match)
         return matches
 
-    def find_opportunities(self, cache: MarketCache) -> list[Opportunity]:
+    async def find_opportunities(self, cache: MarketCache) -> list[Opportunity]:
+        matches = self.find_matches(cache)
+        books = await asyncio.gather(*(self._fetch_books(match) for match in matches))
+
         opportunities: list[Opportunity] = []
-        for match in self.find_matches(cache):
-            opportunities.extend(self._opportunity_service.from_match(match))
+        for match, book_pair in zip(matches, books):
+            if book_pair is None:
+                continue
+            kalshi_book, polymarket_book = book_pair
+            opportunities.extend(self._opportunity_service.from_match(match, kalshi_book, polymarket_book))
         return opportunities
+
+    async def _fetch_books(self, match: MarketMatch):
+        token_ids = PolymarketCollector.token_ids(match.polymarket)
+        if token_ids is None:
+            return None
+        yes_token_id, no_token_id = token_ids
+        try:
+            return await asyncio.gather(
+                self.kalshi_collector.fetch_order_book(match.kalshi.market_id),
+                self.polymarket_collector.fetch_order_book(yes_token_id, no_token_id),
+            )
+        except Exception:
+            return None
 
     @staticmethod
     def serialize_match(match: MarketMatch) -> dict:

@@ -53,7 +53,7 @@ def matches(request: Request) -> list[dict]:
 
 
 @router.get("/opportunities")
-def opportunities(
+async def opportunities(
     request: Request,
     sport: str | None = None,
     minimum_roi: float | None = None,
@@ -64,7 +64,7 @@ def opportunities(
     roi_floor = settings.minimum_roi if minimum_roi is None else minimum_roi
     confidence_floor = settings.minimum_match_confidence if minimum_match_confidence is None else minimum_match_confidence
 
-    results = matching_service.find_opportunities(cache)
+    results = await matching_service.find_opportunities(cache)
     if sport:
         results = [item for item in results if item.sport.lower() == sport.lower()]
     results = [item for item in results if item.roi >= roi_floor and item.match_confidence >= confidence_floor]
@@ -72,10 +72,10 @@ def opportunities(
 
 
 @router.get("/opportunities/{opportunity_id}")
-def opportunity(opportunity_id: str, request: Request) -> dict:
+async def opportunity(opportunity_id: str, request: Request) -> dict:
     cache: MarketCache = request.app.state.market_cache
     matching_service: MatchingService = request.app.state.matching_service
-    for item in matching_service.find_opportunities(cache):
+    for item in await matching_service.find_opportunities(cache):
         if item.id == opportunity_id:
             return OpportunityService.serialize(item)
     raise HTTPException(status_code=404, detail="Opportunity not found")
