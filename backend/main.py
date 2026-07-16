@@ -9,6 +9,7 @@ from backend.collectors.polymarket import PolymarketCollector
 from backend.config import settings
 from backend.services.market_cache import MarketCache
 from backend.services.market_discovery import MarketDiscoveryService
+from backend.services.matching_service import MatchingService
 
 
 def create_app(start_collectors: bool | None = None) -> FastAPI:
@@ -17,6 +18,7 @@ def create_app(start_collectors: bool | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         cache = MarketCache()
+        matching_service = MatchingService(match_confidence_threshold=settings.minimum_match_confidence)
         discovery = MarketDiscoveryService(
             cache=cache,
             collectors=[
@@ -35,6 +37,7 @@ def create_app(start_collectors: bool | None = None) -> FastAPI:
         )
         app.state.market_cache = cache
         app.state.market_discovery = discovery
+        app.state.matching_service = matching_service
         if collectors_enabled:
             discovery.start()
         yield
