@@ -20,7 +20,11 @@ Visitors only need the GitHub Pages link. API credentials, if later required, st
 
 ## Local Development
 
-Requires Python 3.10 or newer. From the repository root:
+**macOS shortcut:** double-click `run.command` in Finder. It handles first-time
+setup, starts both servers, opens the dashboard in your browser, and shuts
+everything down when you close the window.
+
+Manual setup requires Python 3.10 or newer. From the repository root:
 
 ```bash
 python3.12 -m venv .venv
