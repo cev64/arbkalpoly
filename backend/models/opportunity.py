@@ -13,8 +13,13 @@ class Opportunity:
     event_start: datetime
     kalshi_side: str
     kalshi_price: float
+    kalshi_stake: float
+    kalshi_fee: float
     polymarket_side: str
     polymarket_price: float
+    polymarket_stake: float
+    polymarket_fee: float
+    contracts: float
     gross_cost: float
     estimated_fees: float
     net_edge: float

@@ -4,8 +4,12 @@ from pathlib import Path
 
 import httpx
 
-from backend.collectors.kalshi import KalshiCollector, normalize_kalshi_event
-from backend.collectors.polymarket import PolymarketCollector, normalize_polymarket_event
+from backend.collectors.kalshi import KalshiCollector, normalize_kalshi_event, normalize_kalshi_tournament_event
+from backend.collectors.polymarket import (
+    PolymarketCollector,
+    normalize_polymarket_event,
+    normalize_polymarket_tournament_event,
+)
 from backend.models.order_book import OrderBookLevel
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -60,10 +64,16 @@ def test_collectors_use_public_paginated_endpoints():
 
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.host == "kalshi.test":
-            assert request.url.params["series_ticker"] == "KXMLBGAME"
-            return httpx.Response(200, json={"events": [kalshi_event], "cursor": ""})
-        assert request.url.params["tag_slug"] == "mlb"
-        return httpx.Response(200, json={"events": [poly_event], "next_cursor": ""})
+            series_ticker = request.url.params["series_ticker"]
+            if series_ticker == "KXMLBGAME":
+                return httpx.Response(200, json={"events": [kalshi_event], "cursor": ""})
+            assert series_ticker == "KXPGATOUR"
+            return httpx.Response(200, json={"events": [], "cursor": ""})
+        tag_slug = request.url.params["tag_slug"]
+        if tag_slug == "mlb":
+            return httpx.Response(200, json={"events": [poly_event], "next_cursor": ""})
+        assert tag_slug == "golf"
+        return httpx.Response(200, json={"events": [], "next_cursor": ""})
 
     async def collect():
         transport = httpx.MockTransport(handler)
@@ -76,6 +86,71 @@ def test_collectors_use_public_paginated_endpoints():
     kalshi, poly = asyncio.run(collect())
     assert len(kalshi) == 2
     assert len(poly) == 2
+
+
+def test_collectors_also_fetch_golf_tournament_events():
+    kalshi_event = fixture("kalshi_golf_event.json")
+    poly_event = fixture("polymarket_golf_event.json")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "kalshi.test":
+            series_ticker = request.url.params["series_ticker"]
+            if series_ticker == "KXPGATOUR":
+                return httpx.Response(200, json={"events": [kalshi_event], "cursor": ""})
+            return httpx.Response(200, json={"events": [], "cursor": ""})
+        tag_slug = request.url.params["tag_slug"]
+        if tag_slug == "golf":
+            return httpx.Response(200, json={"events": [poly_event], "next_cursor": ""})
+        return httpx.Response(200, json={"events": [], "next_cursor": ""})
+
+    async def collect():
+        transport = httpx.MockTransport(handler)
+        async with httpx.AsyncClient(transport=transport, base_url="https://kalshi.test") as kalshi_client:
+            kalshi = await KalshiCollector(client=kalshi_client).fetch_markets()
+        async with httpx.AsyncClient(transport=transport, base_url="https://poly.test") as poly_client:
+            poly = await PolymarketCollector(client=poly_client).fetch_markets()
+        return kalshi, poly
+
+    kalshi, poly = asyncio.run(collect())
+    assert len(kalshi) == 2
+    assert len(poly) == 2
+    assert {m.selection for m in kalshi} == {"Scottie Scheffler", "Alexander Noren"}
+    assert {m.selection for m in poly} == {"Scottie Scheffler", "Alexander Noren"}
+
+
+def test_normalize_kalshi_golf_tournament():
+    markets = normalize_kalshi_tournament_event(fixture("kalshi_golf_event.json"))
+
+    assert len(markets) == 2
+    scheffler = next(m for m in markets if m.selection == "Scottie Scheffler")
+    assert scheffler.sport == "GOLF"
+    assert scheffler.league == "GOLF"
+    assert scheffler.market_type == "tournament_winner"
+    assert scheffler.home_team == "The Open Championship"
+    assert scheffler.away_team is None
+    assert scheffler.player == "Scottie Scheffler"
+    assert scheffler.yes_best_ask == 0.14
+    assert scheffler.event_start.isoformat() == "2026-07-19T04:00:00+00:00"
+
+    # "Alex Noren" normalizes to the same canonical name Polymarket uses.
+    noren = next(m for m in markets if m.player == "Alexander Noren")
+    assert noren.selection == "Alexander Noren"
+
+
+def test_normalize_polymarket_golf_tournament():
+    markets = normalize_polymarket_tournament_event(fixture("polymarket_golf_event.json"))
+
+    assert len(markets) == 2
+    scheffler = next(m for m in markets if m.selection == "Scottie Scheffler")
+    assert scheffler.sport == "GOLF"
+    assert scheffler.market_type == "tournament_winner"
+    assert scheffler.home_team == "The Open Championship"
+    assert scheffler.away_team is None
+    assert scheffler.yes_best_ask == 0.15
+    assert scheffler.yes_best_bid == 0.14
+
+    token_ids = PolymarketCollector.token_ids(scheffler)
+    assert token_ids == ("token-scheffler-yes", "token-scheffler-no")
 
 
 def test_kalshi_order_book_derives_asks_from_opposite_side_bids():

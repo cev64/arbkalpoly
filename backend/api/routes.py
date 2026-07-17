@@ -58,6 +58,7 @@ async def opportunities(
     sport: str | None = None,
     minimum_roi: float | None = None,
     minimum_match_confidence: int | None = None,
+    hide_stale: bool = False,
 ) -> list[dict]:
     cache: MarketCache = request.app.state.market_cache
     matching_service: MatchingService = request.app.state.matching_service
@@ -67,6 +68,8 @@ async def opportunities(
     results = await matching_service.find_opportunities(cache)
     if sport:
         results = [item for item in results if item.sport.lower() == sport.lower()]
+    if hide_stale:
+        results = [item for item in results if item.status != "stale"]
     results = [item for item in results if item.roi >= roi_floor and item.match_confidence >= confidence_floor]
     return [OpportunityService.serialize(item) for item in results]
 
@@ -75,7 +78,7 @@ async def opportunities(
 async def opportunity(opportunity_id: str, request: Request) -> dict:
     cache: MarketCache = request.app.state.market_cache
     matching_service: MatchingService = request.app.state.matching_service
-    for item in await matching_service.find_opportunities(cache):
-        if item.id == opportunity_id:
-            return OpportunityService.serialize(item)
-    raise HTTPException(status_code=404, detail="Opportunity not found")
+    detail = await matching_service.find_opportunity_detail(cache, opportunity_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="Opportunity not found")
+    return detail

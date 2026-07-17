@@ -7,6 +7,10 @@ from backend.models.order_book import OrderBookLevel
 @dataclass(frozen=True)
 class DepthSizingResult:
     quantity: float
+    yes_cost: float
+    no_cost: float
+    yes_fee: float
+    no_fee: float
     gross_cost: float
     estimated_fees: float
     net_profit: float
@@ -29,8 +33,10 @@ def size_binary_arbitrage(
     no_levels = sorted(no_asks, key=lambda level: level.price)
 
     quantity = 0.0
-    gross_cost = 0.0
-    fees = 0.0
+    yes_cost = 0.0
+    no_cost = 0.0
+    yes_fee = 0.0
+    no_fee = 0.0
     yes_index = no_index = 0
     yes_remaining = yes_levels[0].quantity if yes_levels else 0.0
     no_remaining = no_levels[0].quantity if no_levels else 0.0
@@ -45,8 +51,10 @@ def size_binary_arbitrage(
         if take <= 0:
             break
 
-        gross_cost += take * (yes_level.price + no_level.price)
-        fees += estimate_fee(yes_exchange, yes_level.price, take) + estimate_fee(no_exchange, no_level.price, take)
+        yes_cost += take * yes_level.price
+        no_cost += take * no_level.price
+        yes_fee += estimate_fee(yes_exchange, yes_level.price, take)
+        no_fee += estimate_fee(no_exchange, no_level.price, take)
         quantity += take
 
         yes_remaining -= take
@@ -60,6 +68,8 @@ def size_binary_arbitrage(
             if no_index < len(no_levels):
                 no_remaining = no_levels[no_index].quantity
 
-    net_profit = quantity - gross_cost - fees
+    gross_cost = yes_cost + no_cost
+    estimated_fees = yes_fee + no_fee
+    net_profit = quantity - gross_cost - estimated_fees
     roi = net_profit / gross_cost if gross_cost else 0.0
-    return DepthSizingResult(quantity, gross_cost, fees, net_profit, roi)
+    return DepthSizingResult(quantity, yes_cost, no_cost, yes_fee, no_fee, gross_cost, estimated_fees, net_profit, roi)

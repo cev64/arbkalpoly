@@ -1,0 +1,33 @@
+{
+  "id": "699255",
+  "slug": "2026-the-open-championship-winner",
+  "title": "PGA Tour: The Open Championship Winner",
+  "startDate": "2026-07-13T16:13:13.291812Z",
+  "endDate": "2026-07-19T00:00:00Z",
+  "updatedAt": "2026-07-16T23:54:52.154917Z",
+  "seriesSlug": "pga-tour",
+  "markets": [
+    {
+      "id": "2906926",
+      "question": "Will Scottie Scheffler win the 2026 The Open Championship?",
+      "groupItemTitle": "Scottie Scheffler",
+      "outcomes": "[\"Yes\", \"No\"]",
+      "clobTokenIds": "[\"token-scheffler-yes\", \"token-scheffler-no\"]",
+      "bestBid": 0.14,
+      "bestAsk": 0.15,
+      "description": "This market will resolve according to the listed player who wins the 2026 The Open Championship tournament. If a listed player is eliminated from contention based on the official rules of the tournament, the relevant market will immediately resolve to \"No\".",
+      "resolutionSource": "https://www.pgatour.com/"
+    },
+    {
+      "id": "2906927",
+      "question": "Will Alexander Noren win the 2026 The Open Championship?",
+      "groupItemTitle": "Alexander Noren",
+      "outcomes": "[\"Yes\", \"No\"]",
+      "clobTokenIds": "[\"token-noren-yes\", \"token-noren-no\"]",
+      "bestBid": 0.009,
+      "bestAsk": 0.011,
+      "description": "This market will resolve according to the listed player who wins the 2026 The Open Championship tournament. If a listed player is eliminated from contention based on the official rules of the tournament, the relevant market will immediately resolve to \"No\".",
+      "resolutionSource": "https://www.pgatour.com/"
+    }
+  ]
+}

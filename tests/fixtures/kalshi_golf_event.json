@@ -1,0 +1,36 @@
+{
+  "event_ticker": "KXPGATOUR-THOC26",
+  "series_ticker": "KXPGATOUR",
+  "title": "The Open Championship Winner",
+  "sub_title": "2026 The Open Championship",
+  "category": "Sports",
+  "last_updated_ts": "2026-07-16T20:15:35.678113Z",
+  "markets": [
+    {
+      "ticker": "KXPGATOUR-THOC26-SSCH",
+      "title": "Will Scottie Scheffler win the The Open Championship?",
+      "yes_sub_title": "Scottie Scheffler",
+      "yes_bid_dollars": "0.1300",
+      "yes_ask_dollars": "0.1400",
+      "no_bid_dollars": "0.8600",
+      "no_ask_dollars": "0.8700",
+      "occurrence_datetime": "2026-07-19T04:00:00Z",
+      "expected_expiration_time": "2026-07-19T04:00:00Z",
+      "rules_primary": "If Scottie Scheffler wins the The Open Championship, then the market resolves to Yes.",
+      "rules_secondary": "If a golfer forfeits, withdraws, or does not participate prior to teeing off, their Tournament Winner contract will resolve to No."
+    },
+    {
+      "ticker": "KXPGATOUR-THOC26-ANOR",
+      "title": "Will Alex Noren win the The Open Championship?",
+      "yes_sub_title": "Alex Noren",
+      "yes_bid_dollars": "0.0080",
+      "yes_ask_dollars": "0.0100",
+      "no_bid_dollars": "0.9900",
+      "no_ask_dollars": "0.9920",
+      "occurrence_datetime": "2026-07-19T04:00:00Z",
+      "expected_expiration_time": "2026-07-19T04:00:00Z",
+      "rules_primary": "If Alex Noren wins the The Open Championship, then the market resolves to Yes.",
+      "rules_secondary": "If a golfer forfeits, withdraws, or does not participate prior to teeing off, their Tournament Winner contract will resolve to No."
+    }
+  ]
+}
