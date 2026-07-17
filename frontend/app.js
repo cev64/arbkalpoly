@@ -25,6 +25,14 @@ function formatTime(value) {
   return value ? new Date(value).toLocaleString() : '—';
 }
 
+function formatEventStart(value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  const time = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return `${time} on ${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear()}`;
+}
+
 function formatContracts(value) {
   return Number.isFinite(value) ? Math.round(value).toLocaleString() : '—';
 }
@@ -139,6 +147,7 @@ async function openOpportunityDetail(id) {
 
     detailBody.replaceChildren(
       el('h3', { textContent: `${detail.event} — ${detail.market}` }),
+      el('p', { className: 'opp-card__start', textContent: formatEventStart(detail.event_start) }),
       el('p', {
         textContent: `Status: ${detail.status} · Confidence: ${detail.match_confidence} · Last updated: ${formatTime(detail.last_updated)}`,
       }),
@@ -179,6 +188,7 @@ function renderOpportunityCard(opportunity) {
       el('span', { className: 'opp-card__sport', textContent: opportunity.sport }),
       el('h3', { textContent: opportunity.event }),
       el('p', { className: 'opp-card__market', textContent: opportunity.market }),
+      el('p', { className: 'opp-card__start', textContent: formatEventStart(opportunity.event_start) }),
     ]),
     el('span', { className: `status-badge status-${opportunity.status}`, textContent: opportunity.status }),
   ]);
