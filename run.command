@@ -28,7 +28,7 @@ trap cleanup EXIT
 trap 'exit 0' INT TERM HUP
 
 echo "Starting backend..."
-uvicorn backend.main:app --port 8000 &
+uvicorn backend.main:app --reload --port 8000 &
 BACKEND_PID=$!
 
 echo "Starting frontend..."

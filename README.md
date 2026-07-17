@@ -42,6 +42,19 @@ python -m http.server 8001 --directory frontend
 
 Open `http://localhost:8001`. The backend runs at `http://localhost:8000` and refreshes public MLB game-winner markets every five minutes.
 
+### Keeping a local checkout in sync automatically
+
+If you want a folder that always mirrors `origin/main` without manually
+running `git pull`, run `scripts/install-autopull.sh` once from inside that
+checkout. It installs a macOS LaunchAgent that fetches and hard-resets to
+`origin/main` every 5 minutes in the background (`launchctl`, no cron, no
+app, survives reboots). Because `run.command` starts the backend with
+`--reload`, a running instance picks up pulled code changes automatically;
+the frontend is static files, so a browser refresh is enough there.
+
+This is a mirror, not a workspace - it discards local edits to tracked files
+on every sync. To stop syncing: `launchctl unload ~/Library/LaunchAgents/com.arbkalpoly.autopull.plist`.
+
 ## Core Objectives
 
 - Connect to the Kalshi and Polymarket APIs
