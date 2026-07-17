@@ -1,6 +1,5 @@
 const config = window.ARB_APP_CONFIG;
 const statusEl = document.querySelector('[data-api-status]');
-const marketsBody = document.querySelector('[data-markets]');
 const opportunitiesBody = document.querySelector('[data-opportunities]');
 const marketCountEl = document.querySelector('[data-market-count]');
 const matchCountEl = document.querySelector('[data-match-count]');
@@ -9,31 +8,6 @@ const highestRoiEl = document.querySelector('[data-highest-roi]');
 const detailOverlay = document.querySelector('[data-detail-overlay]');
 const detailBody = document.querySelector('[data-detail-body]');
 const detailCloseButton = document.querySelector('[data-detail-close]');
-
-function replaceRows(body, rows, emptyMessage, columnCount) {
-  body.replaceChildren();
-  if (!rows.length) {
-    const row = body.insertRow();
-    const cell = row.insertCell();
-    cell.colSpan = columnCount;
-    cell.textContent = emptyMessage;
-    return;
-  }
-
-  for (const values of rows) {
-    const row = body.insertRow();
-    for (const value of values) {
-      row.insertCell().textContent = value ?? '—';
-    }
-  }
-}
-
-function gameLabel(market) {
-  if (market.away_team && market.home_team) {
-    return `${market.away_team} at ${market.home_team}`;
-  }
-  return market.event_id;
-}
 
 function formatPrice(price) {
   return Number.isFinite(price) ? `$${price.toFixed(3)}` : '—';
@@ -264,7 +238,7 @@ function renderOpportunities(opportunities) {
 }
 
 // Opportunities stream over the WebSocket for near-real-time updates; everything
-// else (health, markets, matches) is cheap enough to keep on REST polling.
+// else (health, matches) is cheap enough to keep on REST polling.
 const MIN_RECONNECT_DELAY_MS = 1000;
 const MAX_RECONNECT_DELAY_MS = 30000;
 let reconnectDelayMs = MIN_RECONNECT_DELAY_MS;
@@ -290,34 +264,17 @@ function connectOpportunitiesSocket() {
 
 async function refresh() {
   try {
-    const [health, markets, matches] = await Promise.all([
+    const [health, matches] = await Promise.all([
       getJson('/health'),
-      getJson('/markets?limit=500'),
       getJson('/matches'),
     ]);
 
     const collectorErrors = Object.keys(health.collectors?.errors || {}).length;
     statusEl.textContent = collectorErrors ? 'Backend online · feed warning' : 'Live feeds online';
-    marketCountEl.textContent = health.market_count ?? markets.length;
+    marketCountEl.textContent = health.market_count ?? 0;
     matchCountEl.textContent = matches.length;
-
-    replaceRows(
-      marketsBody,
-      markets.slice(0, 100).map((market) => [
-        market.exchange,
-        gameLabel(market),
-        formatTime(market.event_start),
-        market.selection,
-        formatPrice(market.yes_best_bid),
-        formatPrice(market.yes_best_ask),
-        formatTime(market.updated_at),
-      ]),
-      'No live markets loaded yet.',
-      7,
-    );
   } catch (error) {
     statusEl.textContent = 'Backend offline';
-    replaceRows(marketsBody, [], 'Start the FastAPI backend to load markets.', 7);
     renderOpportunitiesMessage('Start the FastAPI backend to load opportunities.');
   }
 }

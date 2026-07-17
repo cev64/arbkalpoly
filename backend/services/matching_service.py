@@ -94,6 +94,7 @@ class MatchingService:
                 self._opportunity_service.from_match(match, kalshi_book, polymarket_book, last_updated, is_stale)
             )
 
+        opportunities.sort(key=lambda opportunity: opportunity.roi, reverse=True)
         logger.info("Computed %d opportunities from %d matches", len(opportunities), len(matches))
         return opportunities
 

@@ -200,6 +200,36 @@ def test_find_opportunities_flags_profitable_cross_exchange_arbitrage():
     assert opportunities[0].net_edge > 0
 
 
+def test_find_opportunities_are_sorted_by_roi_descending():
+    cache = MarketCache()
+    cache.upsert(market("kalshi", "k1", 0.47, 0.55))
+    cache.upsert(market("polymarket", "p1", 0.46, 0.49))
+    cache.upsert(replace(market("kalshi", "k2", 0.47, 0.55), selection="Atlanta Braves"))
+    cache.upsert(replace(market("polymarket", "p2", 0.46, 0.49), selection="Atlanta Braves"))
+
+    kalshi_collector = FakeKalshiCollector({
+        "k1": OrderBook(yes_asks=(OrderBookLevel(0.47, 100),), no_asks=(OrderBookLevel(0.55, 100),)),
+        "k2": OrderBook(yes_asks=(OrderBookLevel(0.47, 100),), no_asks=(OrderBookLevel(0.55, 100),)),
+    })
+    polymarket_collector = FakePolymarketCollector({
+        ("p1-yes-token", "p1-no-token"): OrderBook(
+            yes_asks=(OrderBookLevel(0.46, 100),), no_asks=(OrderBookLevel(0.49, 100),)
+        ),
+        # A much bigger mispricing than the k1/p1 pair, so it must sort first.
+        ("p2-yes-token", "p2-no-token"): OrderBook(
+            yes_asks=(OrderBookLevel(0.20, 100),), no_asks=(OrderBookLevel(0.49, 100),)
+        ),
+    })
+    service = MatchingService(kalshi_collector, polymarket_collector, match_confidence_threshold=90)
+
+    opportunities = asyncio.run(service.find_opportunities(cache))
+
+    rois = [opportunity.roi for opportunity in opportunities]
+    assert rois == sorted(rois, reverse=True)
+    assert len(rois) > 1
+    assert opportunities[0].market == "Atlanta Braves to win"
+
+
 def test_find_opportunities_skips_matches_with_no_edge():
     cache = MarketCache()
     cache.upsert(market("kalshi", "k1", 0.52, 0.55))
