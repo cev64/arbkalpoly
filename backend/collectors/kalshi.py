@@ -191,16 +191,31 @@ class KalshiCollector:
         self.timeout = timeout
         self.max_pages = max_pages
         self.client = client
+        self._owned_client: httpx.AsyncClient | None = None
+
+    async def _get_client(self) -> httpx.AsyncClient:
+        # A fresh AsyncClient per order-book request means a fresh TCP+TLS
+        # handshake every time - with ~100 matches refreshed every 5 seconds this
+        # was hundreds of new connections/sec, enough to stall the event loop and
+        # make the API look like it stopped responding. Reuse one pooled client.
+        if self.client is not None:
+            return self.client
+        if self._owned_client is None:
+            self._owned_client = httpx.AsyncClient(
+                base_url=self.base_url,
+                timeout=self.timeout,
+                headers={"User-Agent": "arbkalpoly/phase-1"},
+            )
+        return self._owned_client
+
+    async def aclose(self) -> None:
+        if self._owned_client is not None:
+            await self._owned_client.aclose()
+            self._owned_client = None
 
     async def fetch_markets(self) -> list[NormalizedMarket]:
-        if self.client is not None:
-            return await self._fetch(self.client)
-        async with httpx.AsyncClient(
-            base_url=self.base_url,
-            timeout=self.timeout,
-            headers={"User-Agent": "arbkalpoly/phase-1"},
-        ) as client:
-            return await self._fetch(client)
+        client = await self._get_client()
+        return await self._fetch(client)
 
     async def _fetch(self, client: httpx.AsyncClient) -> list[NormalizedMarket]:
         normalized: list[NormalizedMarket] = []
@@ -233,14 +248,8 @@ class KalshiCollector:
         return normalized
 
     async def fetch_order_book(self, ticker: str) -> OrderBook:
-        if self.client is not None:
-            return await self._fetch_order_book(self.client, ticker)
-        async with httpx.AsyncClient(
-            base_url=self.base_url,
-            timeout=self.timeout,
-            headers={"User-Agent": "arbkalpoly/phase-1"},
-        ) as client:
-            return await self._fetch_order_book(client, ticker)
+        client = await self._get_client()
+        return await self._fetch_order_book(client, ticker)
 
     async def _fetch_order_book(self, client: httpx.AsyncClient, ticker: str) -> OrderBook:
         response = await client.get(f"/markets/{ticker}/orderbook")

@@ -213,6 +213,8 @@ class PolymarketCollector:
         self.timeout = timeout
         self.max_pages = max_pages
         self.client = client
+        self._owned_gamma_client: httpx.AsyncClient | None = None
+        self._owned_clob_client: httpx.AsyncClient | None = None
 
     @staticmethod
     def token_ids(market: NormalizedMarket) -> tuple[str, str] | None:
@@ -225,15 +227,43 @@ class PolymarketCollector:
             return None
         return str(own), str(opposing)
 
-    async def fetch_markets(self) -> list[NormalizedMarket]:
+    async def _get_gamma_client(self) -> httpx.AsyncClient:
         if self.client is not None:
-            return await self._fetch(self.client)
-        async with httpx.AsyncClient(
-            base_url=self.base_url,
-            timeout=self.timeout,
-            headers={"User-Agent": "arbkalpoly/phase-1"},
-        ) as client:
-            return await self._fetch(client)
+            return self.client
+        if self._owned_gamma_client is None:
+            self._owned_gamma_client = httpx.AsyncClient(
+                base_url=self.base_url,
+                timeout=self.timeout,
+                headers={"User-Agent": "arbkalpoly/phase-1"},
+            )
+        return self._owned_gamma_client
+
+    async def _get_clob_client(self) -> httpx.AsyncClient:
+        # A fresh AsyncClient per order-book request means a fresh TCP+TLS
+        # handshake every time - with ~100 matches refreshed every 5 seconds this
+        # was hundreds of new connections/sec, enough to stall the event loop and
+        # make the API look like it stopped responding. Reuse one pooled client.
+        if self.client is not None:
+            return self.client
+        if self._owned_clob_client is None:
+            self._owned_clob_client = httpx.AsyncClient(
+                base_url=self.clob_base_url,
+                timeout=self.timeout,
+                headers={"User-Agent": "arbkalpoly/phase-1"},
+            )
+        return self._owned_clob_client
+
+    async def aclose(self) -> None:
+        if self._owned_gamma_client is not None:
+            await self._owned_gamma_client.aclose()
+            self._owned_gamma_client = None
+        if self._owned_clob_client is not None:
+            await self._owned_clob_client.aclose()
+            self._owned_clob_client = None
+
+    async def fetch_markets(self) -> list[NormalizedMarket]:
+        client = await self._get_gamma_client()
+        return await self._fetch(client)
 
     async def _fetch(self, client: httpx.AsyncClient) -> list[NormalizedMarket]:
         normalized: list[NormalizedMarket] = []
@@ -296,14 +326,8 @@ class PolymarketCollector:
         return normalized
 
     async def fetch_order_book(self, yes_token_id: str, no_token_id: str) -> OrderBook:
-        if self.client is not None:
-            return await self._fetch_order_book(self.client, yes_token_id, no_token_id)
-        async with httpx.AsyncClient(
-            base_url=self.clob_base_url,
-            timeout=self.timeout,
-            headers={"User-Agent": "arbkalpoly/phase-1"},
-        ) as client:
-            return await self._fetch_order_book(client, yes_token_id, no_token_id)
+        client = await self._get_clob_client()
+        return await self._fetch_order_book(client, yes_token_id, no_token_id)
 
     async def _fetch_order_book(
         self, client: httpx.AsyncClient, yes_token_id: str, no_token_id: str

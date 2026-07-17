@@ -140,6 +140,43 @@ def test_find_matches_only_compares_within_matching_league_and_date_bucket():
     assert pairs == {("k1", "p1"), ("k2", "p2")}
 
 
+def test_find_matches_does_not_compare_different_selections_in_same_bucket():
+    # Same (league, date) but different selections - e.g. two different golfers
+    # in the same tournament on the same day - must never be compared. This is
+    # the bucketing that keeps a ~150-golfer field from becoming a ~20,000-pair
+    # cross-product re-evaluated (and logged) on every broadcaster tick.
+    cache = MarketCache()
+    cache.upsert(market("kalshi", "k1", 0.47, 0.55))
+    cache.upsert(replace(market("polymarket", "p1", 0.46, 0.49), selection="A Totally Different Golfer"))
+
+    service = MatchingService(FakeKalshiCollector({}), FakePolymarketCollector({}), match_confidence_threshold=0)
+
+    assert service.find_matches(cache) == []
+
+
+def test_find_opportunities_logs_a_single_aggregate_summary(caplog):
+    cache = MarketCache()
+    cache.upsert(market("kalshi", "k1", 0.47, 0.55))
+    cache.upsert(market("polymarket", "p1", 0.46, 0.49))
+
+    kalshi_collector = FakeKalshiCollector({
+        "k1": OrderBook(yes_asks=(OrderBookLevel(0.47, 100),), no_asks=(OrderBookLevel(0.55, 100),)),
+    })
+    polymarket_collector = FakePolymarketCollector({
+        ("p1-yes-token", "p1-no-token"): OrderBook(
+            yes_asks=(OrderBookLevel(0.46, 100),), no_asks=(OrderBookLevel(0.49, 100),)
+        ),
+    })
+    service = MatchingService(kalshi_collector, polymarket_collector, match_confidence_threshold=90)
+
+    with caplog.at_level("INFO"):
+        opportunities = asyncio.run(service.find_opportunities(cache))
+
+    summary_lines = [record.message for record in caplog.records if "Computed" in record.message]
+    assert len(summary_lines) == 1
+    assert summary_lines[0] == f"Computed {len(opportunities)} opportunities from 1 matches"
+
+
 def test_find_opportunities_flags_profitable_cross_exchange_arbitrage():
     cache = MarketCache()
     cache.upsert(market("kalshi", "k1", 0.47, 0.55))

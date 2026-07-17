@@ -22,12 +22,17 @@ def size_binary_arbitrage(
     yes_asks: tuple[OrderBookLevel, ...],
     no_exchange: str,
     no_asks: tuple[OrderBookLevel, ...],
+    max_quantity: float | None = None,
 ) -> DepthSizingResult:
     """Walk both ask books together, taking every unit whose combined price is still below 1.
 
     Fees are applied per level after sizing rather than as a stopping condition, so the
     reported quantity can include a marginal level that only turns unprofitable once fees
     are subtracted; callers should reject the final result unless net_profit stays positive.
+
+    Pass max_quantity to cap the walk at a practical position size instead of the full
+    executable depth (e.g. sizing a $100-equivalent position rather than every contract
+    the book could theoretically fill).
     """
     yes_levels = sorted(yes_asks, key=lambda level: level.price)
     no_levels = sorted(no_asks, key=lambda level: level.price)
@@ -48,6 +53,8 @@ def size_binary_arbitrage(
             break
 
         take = min(yes_remaining, no_remaining)
+        if max_quantity is not None:
+            take = min(take, max_quantity - quantity)
         if take <= 0:
             break
 
