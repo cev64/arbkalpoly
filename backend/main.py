@@ -46,6 +46,7 @@ def create_app(
             polymarket_collector=polymarket,
             match_confidence_threshold=settings.minimum_match_confidence,
             stale_after_seconds=settings.stale_after_seconds,
+            target_stake_dollars=settings.target_stake_dollars,
         )
         discovery = MarketDiscoveryService(
             cache=cache,
@@ -69,6 +70,10 @@ def create_app(
         logger.info("Shutting down scanner")
         await discovery.stop()
         await broadcaster.stop()
+        if hasattr(kalshi, "aclose"):
+            await kalshi.aclose()
+        if hasattr(polymarket, "aclose"):
+            await polymarket.aclose()
 
     app = FastAPI(
         title="Kalshi Polymarket Sports Arbitrage Scanner",

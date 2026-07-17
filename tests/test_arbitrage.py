@@ -43,3 +43,15 @@ def test_size_binary_arbitrage_returns_zero_when_no_levels_are_profitable():
     assert result.quantity == 0
     assert result.gross_cost == 0
     assert result.net_profit == 0
+
+
+def test_size_binary_arbitrage_respects_max_quantity_cap():
+    yes_asks = (OrderBookLevel(0.40, 5), OrderBookLevel(0.50, 10))
+    no_asks = (OrderBookLevel(0.45, 8), OrderBookLevel(0.60, 10))
+
+    uncapped = size_binary_arbitrage("kalshi", yes_asks, "polymarket", no_asks)
+    capped = size_binary_arbitrage("kalshi", yes_asks, "polymarket", no_asks, max_quantity=3)
+
+    assert uncapped.quantity == 8
+    assert capped.quantity == 3
+    assert round(capped.gross_cost, 2) == 2.55

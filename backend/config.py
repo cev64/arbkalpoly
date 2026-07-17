@@ -4,9 +4,15 @@ class Settings(BaseSettings):
     allowed_origin: str = "http://localhost:8001"
     minimum_roi: float = 0.01
     minimum_match_confidence: int = 90
-    stale_after_seconds: int = 15
+    # Market metadata (team names, rules text, the updated_at this is measured
+    # against) only refreshes once per market_refresh_seconds - order-book prices
+    # are always fetched live regardless. This must comfortably exceed
+    # market_refresh_seconds or every opportunity gets marked stale for most of
+    # each discovery cycle.
+    stale_after_seconds: int = 600
     market_refresh_seconds: int = 300
     websocket_push_interval_seconds: float = 5.0
+    target_stake_dollars: float = 100.0
     collector_timeout_seconds: float = 20.0
     collector_max_pages: int = 10
     enable_live_collectors: bool = True

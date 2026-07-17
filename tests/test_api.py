@@ -1,8 +1,8 @@
-from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
 
+from backend.config import settings
 from backend.main import create_app
 from backend.models.order_book import OrderBook, OrderBookLevel
 from tests.test_market_discovery import market
@@ -90,12 +90,14 @@ def test_opportunities_filters_below_minimum_roi():
 def test_hide_stale_query_param_excludes_stale_opportunities():
     with TestClient(matched_app()) as client:
         cache = client.app.state.market_cache
-        stale_kalshi = replace(
-            matched_market("kalshi", "k1", 0.47, 0.55),
-            updated_at=datetime.now(UTC) - timedelta(minutes=5),
-        )
-        cache.upsert(stale_kalshi)
+        cache.upsert(matched_market("kalshi", "k1", 0.47, 0.55))
         cache.upsert(matched_market("polymarket", "p1", 0.46, 0.49))
+        # Staleness reflects the discovery pipeline's own refresh health, not any
+        # individual market's exchange-reported timestamp - simulate a pipeline
+        # that stopped refreshing a while ago rather than an old per-market field.
+        cache.set_last_refreshed(
+            "kalshi", datetime.now(UTC) - timedelta(seconds=settings.stale_after_seconds + 60)
+        )
 
         default_response = client.get("/opportunities")
         assert default_response.status_code == 200

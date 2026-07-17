@@ -1,5 +1,4 @@
-import logging
-from datetime import UTC, datetime
+from datetime import datetime
 from dataclasses import asdict
 
 from backend.arbitrage.sizing import size_binary_arbitrage
@@ -7,37 +6,48 @@ from backend.matcher.market_matcher import MarketMatch, event_label
 from backend.models.opportunity import Opportunity
 from backend.models.order_book import OrderBook, OrderBookLevel
 
-logger = logging.getLogger(__name__)
-
 
 def _best_price(levels: tuple[OrderBookLevel, ...]) -> float:
     return min((level.price for level in levels), default=0.0)
 
 
 class OpportunityService:
-    def __init__(self, stale_after_seconds: int = 15) -> None:
-        self.stale_after_seconds = stale_after_seconds
+    def __init__(self, target_stake_dollars: float = 100.0) -> None:
+        self.target_stake_dollars = target_stake_dollars
 
-    def from_match(self, match: MarketMatch, kalshi_book: OrderBook, polymarket_book: OrderBook) -> list[Opportunity]:
+    def from_match(
+        self,
+        match: MarketMatch,
+        kalshi_book: OrderBook,
+        polymarket_book: OrderBook,
+        last_updated: datetime,
+        is_stale: bool,
+    ) -> list[Opportunity]:
         opportunities: list[Opportunity] = []
-        last_updated = min(match.kalshi.updated_at, match.polymarket.updated_at)
-        age_seconds = (datetime.now(UTC) - last_updated).total_seconds()
-        is_stale = age_seconds > self.stale_after_seconds
         status = "stale" if is_stale else match.status
-        if is_stale:
-            logger.warning(
-                "Opportunity %s/%s marked stale: age=%.1fs > stale_after_seconds=%d",
-                match.kalshi.market_id, match.polymarket.market_id, age_seconds, self.stale_after_seconds,
-            )
 
         legs = [
             ("Kalshi", kalshi_book.yes_asks, "Polymarket", polymarket_book.no_asks, "YES", "NO"),
             ("Polymarket", polymarket_book.yes_asks, "Kalshi", kalshi_book.no_asks, "NO", "YES"),
         ]
         for yes_exchange, yes_asks, no_exchange, no_asks, kalshi_side, poly_side in legs:
-            sizing = size_binary_arbitrage(yes_exchange, yes_asks, no_exchange, no_asks)
+            max_sizing = size_binary_arbitrage(yes_exchange, yes_asks, no_exchange, no_asks)
+            if max_sizing.quantity <= 0 or max_sizing.net_profit <= 0:
+                continue
+
+            # Reporting the full executable depth (which can be thousands of
+            # dollars) isn't how anyone actually places these bets - size a
+            # practical default position instead: target_stake_dollars on
+            # whichever leg is pricier (so the complementary leg, being cheaper
+            # per contract, never costs more than that), capped by real depth.
+            anchor_price = max(_best_price(yes_asks), _best_price(no_asks))
+            target_quantity = self.target_stake_dollars / anchor_price if anchor_price > 0 else max_sizing.quantity
+            sizing = size_binary_arbitrage(
+                yes_exchange, yes_asks, no_exchange, no_asks, max_quantity=min(target_quantity, max_sizing.quantity)
+            )
             if sizing.quantity <= 0 or sizing.net_profit <= 0:
                 continue
+
             if yes_exchange == "Kalshi":
                 kalshi_stake, kalshi_fee = sizing.yes_cost, sizing.yes_fee
                 polymarket_stake, polymarket_fee = sizing.no_cost, sizing.no_fee
@@ -64,8 +74,8 @@ class OpportunityService:
                 estimated_fees=sizing.estimated_fees,
                 net_edge=sizing.net_profit,
                 roi=sizing.roi,
-                maximum_executable_cost=sizing.gross_cost,
-                maximum_expected_profit=sizing.net_profit,
+                maximum_executable_cost=max_sizing.gross_cost,
+                maximum_expected_profit=max_sizing.net_profit,
                 match_confidence=match.confidence,
                 status=status,
                 last_updated=last_updated,

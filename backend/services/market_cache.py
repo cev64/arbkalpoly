@@ -1,10 +1,12 @@
 from dataclasses import asdict
+from datetime import UTC, datetime
 
 from backend.models.market import NormalizedMarket
 
 class MarketCache:
     def __init__(self) -> None:
         self._markets: dict[str, NormalizedMarket] = {}
+        self._last_refreshed: dict[str, datetime] = {}
 
     def upsert(self, market: NormalizedMarket) -> None:
         self._markets[f"{market.exchange}:{market.market_id}"] = market
@@ -17,6 +19,22 @@ class MarketCache:
         }
         for market in markets:
             self.upsert(market)
+        self._last_refreshed[exchange.lower()] = datetime.now(UTC)
+
+    def last_refreshed(self, exchange: str) -> datetime | None:
+        """When discovery last successfully refreshed this exchange's market list.
+
+        Individual exchanges' own per-market "updated" timestamps reflect when that
+        market's price last changed there, not when we last fetched it - for an
+        illiquid market that can be hours or days old even though we just confirmed
+        its current state seconds ago. This is the actual freshness signal to use
+        for staleness: is our own discovery pipeline still successfully refreshing.
+        """
+        return self._last_refreshed.get(exchange.lower())
+
+    def set_last_refreshed(self, exchange: str, when: datetime) -> None:
+        """Test-seeding hook for simulating discovery staleness without a real refresh."""
+        self._last_refreshed[exchange.lower()] = when
 
     def all(
         self,

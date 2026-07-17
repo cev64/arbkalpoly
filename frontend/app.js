@@ -51,6 +51,10 @@ function formatTime(value) {
   return value ? new Date(value).toLocaleString() : '—';
 }
 
+function formatContracts(value) {
+  return Number.isFinite(value) ? Math.round(value).toLocaleString() : '—';
+}
+
 async function getJson(path) {
   const response = await fetch(`${config.apiBaseUrl}${path}`);
   if (!response.ok) throw new Error(`${path} returned ${response.status}`);
@@ -232,7 +236,7 @@ function renderOpportunityCard(opportunity) {
     el('span', {
       className: 'opp-card__meta',
       textContent:
-        `${opportunity.contracts} contracts · Confidence ${opportunity.match_confidence} · ` +
+        `${formatContracts(opportunity.contracts)} contracts · Confidence ${opportunity.match_confidence} · ` +
         `Updated ${formatTime(opportunity.last_updated)}`,
     }),
     detailButton,
@@ -288,7 +292,7 @@ async function refresh() {
   try {
     const [health, markets, matches] = await Promise.all([
       getJson('/health'),
-      getJson('/markets?league=MLB&limit=500'),
+      getJson('/markets?limit=500'),
       getJson('/matches'),
     ]);
 
