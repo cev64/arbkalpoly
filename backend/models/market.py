@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Literal
 
-MarketType = Literal["moneyline", "future", "player_prop", "unknown"]
+MarketType = Literal["moneyline", "future", "player_prop", "tournament_winner", "unknown"]
 
 @dataclass(frozen=True)
 class NormalizedMarket:

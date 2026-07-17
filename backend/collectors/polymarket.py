@@ -8,7 +8,7 @@ import httpx
 
 from backend.models.market import NormalizedMarket
 from backend.models.order_book import OrderBook, OrderBookLevel
-from backend.normalizer.sports_normalizer import normalize_team, parse_datetime
+from backend.normalizer.sports_normalizer import normalize_player, normalize_team, parse_datetime
 
 
 def _list(value: Any) -> list[Any]:
@@ -121,6 +121,80 @@ def normalize_polymarket_event(event: dict[str, Any]) -> list[NormalizedMarket]:
     return normalized
 
 
+def _polymarket_tournament_name(event: dict[str, Any]) -> str | None:
+    """Derive a canonical tournament name matching Kalshi's own stripped sub_title."""
+    title = event.get("title") or ""
+    without_prefix = re.sub(r"^PGA Tour:\s*", "", title, flags=re.IGNORECASE)
+    without_suffix = re.sub(r"[:\s]*Winner$", "", without_prefix, flags=re.IGNORECASE).strip()
+    return without_suffix or None
+
+
+def normalize_polymarket_tournament_event(event: dict[str, Any]) -> list[NormalizedMarket]:
+    """Convert one Polymarket golf tournament-winner event into a binary market per golfer.
+
+    Unlike MLB, each market here is already a standalone Yes/No pair for one golfer
+    (its own two clobTokenIds), not two outcomes sharing one market object, so there's
+    no complement trick needed to build the "no" side - it's this golfer's own token.
+    """
+    tournament = _polymarket_tournament_name(event)
+    start_value = event.get("endDate") or event.get("startTime") or event.get("eventDate")
+    if not tournament or not start_value:
+        return []
+
+    normalized: list[NormalizedMarket] = []
+    for market in event.get("markets") or []:
+        outcomes = _list(market.get("outcomes"))
+        token_ids = _list(market.get("clobTokenIds"))
+        if outcomes != ["Yes", "No"] or len(token_ids) != 2:
+            continue
+
+        golfer = normalize_player(market.get("groupItemTitle"))
+        if not golfer:
+            continue
+
+        yes_token_id, no_token_id = token_ids
+        yes_bid = _price(market.get("bestBid"))
+        yes_ask = _price(market.get("bestAsk"))
+        updated_value = market.get("updatedAt") or event.get("updatedAt") or datetime.now(UTC).isoformat()
+        rules_text = "\n\n".join(
+            text.strip()
+            for text in (market.get("description"), market.get("resolutionSource"))
+            if text and text.strip()
+        )
+        event_slug = event.get("slug") or event.get("id")
+
+        normalized.append(NormalizedMarket(
+            exchange="polymarket",
+            market_id=f"{market['id']}:{yes_token_id}",
+            sport="GOLF",
+            league="GOLF",
+            event_id=str(event.get("id")),
+            event_start=parse_datetime(start_value),
+            home_team=tournament,
+            away_team=None,
+            player=golfer,
+            market_type="tournament_winner",
+            selection=golfer,
+            line=None,
+            period="tournament",
+            yes_best_ask=yes_ask,
+            yes_best_bid=yes_bid,
+            no_best_ask=_complement(yes_bid),
+            no_best_bid=_complement(yes_ask),
+            rules_text=rules_text,
+            market_url=f"https://polymarket.com/event/{event_slug}",
+            updated_at=parse_datetime(updated_value),
+            raw={
+                "event": {key: value for key, value in event.items() if key != "markets"},
+                "market": market,
+                "token_id": yes_token_id,
+                "opposing_token_id": no_token_id,
+            },
+        ))
+
+    return normalized
+
+
 class PolymarketCollector:
     """Read-only collector for public Polymarket MLB game-winner markets."""
 
@@ -162,6 +236,12 @@ class PolymarketCollector:
             return await self._fetch(client)
 
     async def _fetch(self, client: httpx.AsyncClient) -> list[NormalizedMarket]:
+        normalized: list[NormalizedMarket] = []
+        normalized.extend(await self._fetch_mlb(client))
+        normalized.extend(await self._fetch_golf(client))
+        return normalized
+
+    async def _fetch_mlb(self, client: httpx.AsyncClient) -> list[NormalizedMarket]:
         cursor: str | None = None
         normalized: list[NormalizedMarket] = []
         start_time_min = (datetime.now(UTC) - timedelta(days=1)).isoformat()
@@ -182,6 +262,33 @@ class PolymarketCollector:
             for event in payload.get("events") or []:
                 if str(event.get("seriesSlug", "")).lower() == "mlb":
                     normalized.extend(normalize_polymarket_event(event))
+            cursor = payload.get("next_cursor")
+            if not cursor:
+                break
+
+        return normalized
+
+    async def _fetch_golf(self, client: httpx.AsyncClient) -> list[NormalizedMarket]:
+        cursor: str | None = None
+        normalized: list[NormalizedMarket] = []
+
+        for _ in range(self.max_pages):
+            params: dict[str, str | int | bool] = {
+                "tag_slug": "golf",
+                "active": True,
+                "closed": False,
+                "limit": 100,
+            }
+            if cursor:
+                params["after_cursor"] = cursor
+            response = await client.get("/events/keyset", params=params)
+            response.raise_for_status()
+            payload = response.json()
+            for event in payload.get("events") or []:
+                # Only tournament-winner events, not the top5/top10/make-the-cut
+                # prop markets that share the same "golf" tag.
+                if str(event.get("slug", "")).endswith("-winner"):
+                    normalized.extend(normalize_polymarket_tournament_event(event))
             cursor = payload.get("next_cursor")
             if not cursor:
                 break

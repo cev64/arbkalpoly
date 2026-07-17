@@ -1,11 +1,21 @@
 import asyncio
+import json
 from dataclasses import replace
 from datetime import UTC, datetime
+from pathlib import Path
 
+from backend.collectors.kalshi import normalize_kalshi_tournament_event
+from backend.collectors.polymarket import normalize_polymarket_tournament_event
 from backend.models.market import NormalizedMarket
 from backend.models.order_book import OrderBook, OrderBookLevel
 from backend.services.market_cache import MarketCache
 from backend.services.matching_service import MatchingService
+
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def fixture(name: str) -> dict:
+    return json.loads((FIXTURES / name).read_text())
 
 
 def market(exchange: str, market_id: str, yes_best_ask: float, no_best_ask: float) -> NormalizedMarket:
@@ -63,6 +73,30 @@ def test_find_matches_pairs_identical_markets_across_exchanges():
 
     assert len(matches) == 1
     assert matches[0].status == "confirmed"
+
+
+def test_find_matches_pairs_golf_tournament_winner_markets_across_exchanges():
+    cache = MarketCache()
+    for m in normalize_kalshi_tournament_event(fixture("kalshi_golf_event.json")):
+        cache.upsert(m)
+    for m in normalize_polymarket_tournament_event(fixture("polymarket_golf_event.json")):
+        cache.upsert(m)
+
+    # The fixtures use each exchange's real withdrawal-rule wording ("withdraws" vs
+    # "eliminated from contention"), which the keyword-based rule validator can't
+    # tell are equivalent - so this realistically lands as manual_review, not
+    # confirmed, at a threshold low enough to admit it at all. At the production
+    # default (90) these are correctly rejected outright rather than false-confirmed.
+    service = MatchingService(FakeKalshiCollector({}), FakePolymarketCollector({}), match_confidence_threshold=80)
+    matches = service.find_matches(cache)
+
+    selections = {match.kalshi.selection for match in matches}
+    assert selections == {"Scottie Scheffler", "Alexander Noren"}
+    assert all(match.status == "manual_review" for match in matches)
+    assert all(match.confidence == 80 for match in matches)
+
+    strict_service = MatchingService(FakeKalshiCollector({}), FakePolymarketCollector({}), match_confidence_threshold=90)
+    assert strict_service.find_matches(cache) == []
 
 
 def test_find_matches_ignores_different_leagues():

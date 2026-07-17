@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from dataclasses import asdict
 
 from backend.arbitrage.sizing import size_binary_arbitrage
-from backend.matcher.market_matcher import MarketMatch
+from backend.matcher.market_matcher import MarketMatch, event_label
 from backend.models.opportunity import Opportunity
 from backend.models.order_book import OrderBook, OrderBookLevel
 
@@ -44,7 +44,7 @@ class OpportunityService:
             else:
                 kalshi_stake, kalshi_fee = sizing.no_cost, sizing.no_fee
                 polymarket_stake, polymarket_fee = sizing.yes_cost, sizing.yes_fee
-            event = f"{match.kalshi.away_team} at {match.kalshi.home_team}"
+            event = event_label(match.kalshi)
             opportunities.append(Opportunity(
                 id=f"{match.kalshi.market_id}:{match.polymarket.market_id}:{kalshi_side}:{poly_side}",
                 sport=match.kalshi.sport,

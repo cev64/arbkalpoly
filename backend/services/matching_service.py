@@ -5,7 +5,7 @@ from datetime import date
 from typing import Protocol
 
 from backend.collectors.polymarket import PolymarketCollector
-from backend.matcher.market_matcher import MarketMatch, match_markets
+from backend.matcher.market_matcher import MarketMatch, event_label, match_markets
 from backend.models.market import NormalizedMarket
 from backend.models.opportunity import Opportunity
 from backend.services.market_cache import MarketCache
@@ -113,7 +113,7 @@ class MatchingService:
             "polymarket_market_id": match.polymarket.market_id,
             "sport": match.kalshi.sport,
             "league": match.kalshi.league,
-            "event": f"{match.kalshi.away_team} at {match.kalshi.home_team}",
+            "event": event_label(match.kalshi),
             "market_type": match.kalshi.market_type,
             "selection": match.kalshi.selection,
             "confidence": match.confidence,

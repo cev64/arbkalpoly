@@ -15,6 +15,12 @@ class MarketMatch:
     status: str
     explanation: str
 
+def event_label(market: NormalizedMarket) -> str:
+    """Human-readable event name, for both two-team games and individual-sport fields."""
+    if market.away_team is None:
+        return market.home_team or market.event_id
+    return f"{market.away_team} at {market.home_team}"
+
 def _lines_match(kalshi_line: float | None, polymarket_line: float | None) -> bool:
     """Compare betting lines with float tolerance instead of exact equality.
 

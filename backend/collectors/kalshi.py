@@ -7,9 +7,10 @@ import httpx
 
 from backend.models.market import NormalizedMarket
 from backend.models.order_book import OrderBook, OrderBookLevel
-from backend.normalizer.sports_normalizer import normalize_team, parse_datetime
+from backend.normalizer.sports_normalizer import normalize_player, normalize_team, parse_datetime
 
 MLB_GAME_SERIES = "KXMLBGAME"
+GOLF_TOURNAMENT_SERIES = "KXPGATOUR"
 
 
 def _price(value: Any) -> float | None:
@@ -97,10 +98,87 @@ def normalize_kalshi_event(event: dict[str, Any]) -> list[NormalizedMarket]:
     return normalized
 
 
+def _tournament_name(event: dict[str, Any]) -> str | None:
+    """Derive a canonical tournament name to compare against Polymarket's own title stripping."""
+    sub_title = event.get("sub_title") or ""
+    without_year = re.sub(r"^\d{4}\s+", "", sub_title).strip()
+    if without_year:
+        return without_year
+    title = event.get("title") or ""
+    without_suffix = re.sub(r"\s+Winner$", "", title, flags=re.IGNORECASE).strip()
+    return without_suffix or None
+
+
+def normalize_kalshi_tournament_event(event: dict[str, Any]) -> list[NormalizedMarket]:
+    """Convert one Kalshi golf tournament-winner event into one binary market per golfer.
+
+    Reuses home_team to carry the tournament identity (there's no away side for an
+    individual-sport field), which lets the existing league+date match bucketing and
+    home_team equality check work unchanged for this market type.
+    """
+    tournament = _tournament_name(event)
+    if not tournament:
+        return []
+
+    normalized: list[NormalizedMarket] = []
+    for market in event.get("markets") or []:
+        event_start = _event_start(market)
+        if event_start is None:
+            continue
+
+        golfer = normalize_player(market.get("yes_sub_title"))
+        if not golfer:
+            continue
+
+        updated_value = (
+            market.get("updated_time")
+            or event.get("last_updated_ts")
+            or datetime.now(UTC).isoformat()
+        )
+        rules_text = "\n\n".join(
+            text.strip()
+            for text in (market.get("rules_primary"), market.get("rules_secondary"))
+            if text and text.strip()
+        )
+        ticker = str(market["ticker"])
+        event_ticker = str(event["event_ticker"])
+
+        normalized.append(NormalizedMarket(
+            exchange="kalshi",
+            market_id=ticker,
+            sport="GOLF",
+            league="GOLF",
+            event_id=event_ticker,
+            event_start=event_start,
+            home_team=tournament,
+            away_team=None,
+            player=golfer,
+            market_type="tournament_winner",
+            selection=golfer,
+            line=None,
+            period="tournament",
+            yes_best_ask=_price(market.get("yes_ask_dollars")),
+            yes_best_bid=_price(market.get("yes_bid_dollars")),
+            no_best_ask=_price(market.get("no_ask_dollars")),
+            no_best_bid=_price(market.get("no_bid_dollars")),
+            rules_text=rules_text,
+            market_url=f"https://kalshi.com/markets/{ticker}",
+            updated_at=parse_datetime(updated_value),
+            raw={"event": {key: value for key, value in event.items() if key != "markets"}, "market": market},
+        ))
+
+    return normalized
+
+
 class KalshiCollector:
-    """Read-only collector for public Kalshi MLB game-winner markets."""
+    """Read-only collector for public Kalshi MLB game-winner and golf tournament-winner markets."""
 
     exchange = "kalshi"
+
+    SERIES = (
+        (MLB_GAME_SERIES, normalize_kalshi_event),
+        (GOLF_TOURNAMENT_SERIES, normalize_kalshi_tournament_event),
+    )
 
     def __init__(
         self,
@@ -125,12 +203,18 @@ class KalshiCollector:
             return await self._fetch(client)
 
     async def _fetch(self, client: httpx.AsyncClient) -> list[NormalizedMarket]:
+        normalized: list[NormalizedMarket] = []
+        for series_ticker, normalizer in self.SERIES:
+            normalized.extend(await self._fetch_series(client, series_ticker, normalizer))
+        return normalized
+
+    async def _fetch_series(self, client: httpx.AsyncClient, series_ticker: str, normalizer) -> list[NormalizedMarket]:
         cursor: str | None = None
         normalized: list[NormalizedMarket] = []
 
         for _ in range(self.max_pages):
             params: dict[str, str | int | bool] = {
-                "series_ticker": MLB_GAME_SERIES,
+                "series_ticker": series_ticker,
                 "status": "open",
                 "with_nested_markets": True,
                 "limit": 200,
@@ -141,7 +225,7 @@ class KalshiCollector:
             response.raise_for_status()
             payload = response.json()
             for event in payload.get("events") or []:
-                normalized.extend(normalize_kalshi_event(event))
+                normalized.extend(normalizer(event))
             cursor = payload.get("cursor")
             if not cursor:
                 break
